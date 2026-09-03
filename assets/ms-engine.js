@@ -425,12 +425,85 @@ window.MediScan = (function () {
     return null;
   }
 
+  // ---- Kalender-Export (.ics) für Einnahme-Erinnerungen ---------------------
+  // Erzeugt eine RFC-5545-Kalenderdatei mit täglich wiederkehrenden Terminen
+  // (ein VEVENT je Einnahmezeit, VALARM zur Einnahmezeit). So kommen die
+  // Erinnerungen zuverlässig aus dem echten Kalender des Nutzers – vollständig
+  // offline, ohne Server, ohne dass Daten das Gerät verlassen. Reine
+  // Text-Erzeugung; keine erfundenen klinischen Daten.
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function icsEscape(s) {                      // RFC 5545 TEXT-Escaping
+    return String(s == null ? "" : s)
+      .replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,")
+      .replace(/\r?\n/g, "\\n");
+  }
+  function icsFold(line) {                      // ~75-Zeichen-Faltung (CRLF + Space)
+    if (line.length <= 74) return line;
+    var out = line.substr(0, 74), i = 74;
+    while (i < line.length) { out += "\r\n " + line.substr(i, 73); i += 73; }
+    return out;
+  }
+  function validTime(str) {                     // "8:5"->null, "08:05"->"08:05", "24:00"->null
+    var m = /^(\d{1,2}):(\d{2})$/.exec(String(str == null ? "" : str).trim());
+    if (!m) return null;
+    var h = +m[1], mi = +m[2];
+    if (h > 23 || mi > 59) return null;
+    return pad2(h) + ":" + pad2(mi);
+  }
+  function stampUTC(d) {
+    return d.getUTCFullYear() + pad2(d.getUTCMonth() + 1) + pad2(d.getUTCDate()) + "T" +
+      pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) + pad2(d.getUTCSeconds()) + "Z";
+  }
+  function localDay(d) { return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()); }
+
+  // plan: {id, name, times:[...]}; medNames: [String]; now: Date (Testbarkeit)
+  function buildICS(plan, medNames, now) {
+    now = now || new Date();
+    var times = [];
+    ((plan && plan.times) || []).forEach(function (t) {
+      var v = validTime(t); if (v && times.indexOf(v) === -1) times.push(v);
+    });
+    times.sort();
+    if (!times.length) return null;
+    var domain = "mediscan.vaydena.de";
+    var name = (plan && plan.name) ? String(plan.name) : "Medikationsplan";
+    var meds = (medNames || []).filter(Boolean);
+    var descPlain = (meds.length ? meds.join(", ") : "Medikamente laut Plan") +
+      "\nMediScan-Erinnerung. Kein Ersatz für ärztliche oder pharmazeutische Beratung.";
+    var uidBase = (plan && plan.id ? plan.id : "plan") + "-" + localDay(now);
+    var day = localDay(now), stamp = stampUTC(now);
+    var L = [
+      "BEGIN:VCALENDAR", "VERSION:2.0",
+      "PRODID:-//MediScan//Medikationsplan//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"
+    ];
+    times.forEach(function (t) {
+      var hms = t.replace(":", "") + "00";       // HHMMSS (floating local time)
+      L.push("BEGIN:VEVENT");
+      L.push("UID:" + uidBase + "-" + t.replace(":", "") + "@" + domain);
+      L.push("DTSTAMP:" + stamp);
+      L.push("DTSTART:" + day + "T" + hms);
+      L.push("DURATION:PT5M");
+      L.push("RRULE:FREQ=DAILY");
+      L.push(icsFold("SUMMARY:" + icsEscape("Medikamente einnehmen – " + name + " (" + t + ")")));
+      L.push(icsFold("DESCRIPTION:" + icsEscape(descPlain)));
+      L.push("BEGIN:VALARM");
+      L.push("ACTION:DISPLAY");
+      L.push("TRIGGER:PT0M");
+      L.push(icsFold("DESCRIPTION:" + icsEscape("Medikamente einnehmen – " + name)));
+      L.push("END:VALARM");
+      L.push("END:VEVENT");
+    });
+    L.push("END:VCALENDAR");
+    return L.join("\r\n") + "\r\n";
+  }
+
   return {
     load: load, meta: meta, medById: medById,
     detect: detect, search: search,
     interactionsFor: interactionsFor, complexFor: complexFor, risksFor: risksFor,
     analyze: analyze, sev: sev, norm: norm,
     pzn: { parse: pznParse, check: pznCheck, pad8: pad8 },
+    ics: { build: buildICS, escape: icsEscape, fold: icsFold, validTime: validTime },
     RISK_CATEGORIES: RISK_CATEGORIES
   };
 })();

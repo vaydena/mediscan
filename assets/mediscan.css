@@ -122,6 +122,32 @@ img{max-width:100%}
 .chip .x:hover{background:rgba(0,77,64,.22)}
 .chip small{font-weight:500;opacity:.8}
 
+/* kompakte Buttons + Gefahr-Variante (Löschen) */
+.btn.small{padding:8px 12px;font-size:.9rem;border-radius:9px}
+.btn.ghost.danger{color:#c62828;border-color:#f0cbc8}
+.btn.ghost.danger:hover{background:#fdf3f2;filter:none}
+.selactions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+
+/* Gespeicherte Pläne & Einnahme-Erinnerungen */
+#planList{display:flex;flex-direction:column;gap:10px}
+.mplan{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fbfffe}
+.mplan-hd{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.mplan-nm{flex:1;min-width:160px}
+.mplan-nm .n{margin-left:2px}
+.mplan-prev{margin-top:3px}
+.mplan-bt{display:flex;flex-wrap:wrap;gap:6px}
+.mplan-rem{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+.rem-times{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.timechip{display:inline-flex;align-items:center;gap:6px;background:#e0f2f1;color:var(--petrol-d);
+  border-radius:999px;padding:5px 6px 5px 12px;font-weight:700;font-size:.9rem}
+.timechip .x{width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,77,64,.12);
+  color:var(--petrol-d);font-size:.95rem;line-height:1;cursor:pointer}
+.timechip .x:hover{background:rgba(0,77,64,.22)}
+.rem-add{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.rem-add .tin{font:inherit;padding:8px 10px;border:1.5px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+.rem-actions{display:flex;flex-wrap:wrap;gap:8px}
+.rem-note{margin:10px 2px 0;line-height:1.45}
+
 /* Profil-Schalter */
 .toggles{display:flex;flex-wrap:wrap;gap:8px}
 .toggle{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--line);background:#fff;

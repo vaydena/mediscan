@@ -1,4 +1,4 @@
 mediscan
-build: ms-v1-3f9b2d
+build: ms-v1-5d1a8e
 date: 2026-09-03
-note: PZN-/Barcode-Scan (Kamera BarcodeDetector + ZXing-Fallback, PZN-8-Pruefziffer), selbstlernende geraetelokale PZN->Praeparat-Zuordnung, manuelle PZN-Eingabe, OCR eingeklappt
+note: Plaene & Einnahme-Erinnerungen (geraetelokal): Auswahl als Plan speichern, laden, umbenennen, loeschen; Einnahmezeiten pro Plan; zuverlaessige .ics-Kalenderdatei (VEVENT+RRULE:FREQ=DAILY+VALARM) zum Import in den eigenen Kalender; optionale In-App-Benachrichtigung (nur bei geoeffneter App, ehrlich beschriftet). Keine erfundenen klinischen Daten.

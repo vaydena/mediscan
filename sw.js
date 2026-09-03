@@ -1,7 +1,7 @@
 /* MediScan – Service Worker (Offline-Shell + Referenzdatenbank).
  * Bei App-Änderungen VERSION erhöhen → alter Cache wird verworfen.
  */
-var VERSION = "ms-v1-2026-09-03-4";
+var VERSION = "ms-v1-2026-09-03-5";
 var CACHE = "mediscan-" + VERSION;
 
 /* Alles, was die App offline braucht (inkl. der 1,4-MB-Referenz-DB und jsPDF). */
@@ -46,6 +46,20 @@ self.addEventListener("activate", function (e) {
 
 self.addEventListener("message", function (e) {
   if (e.data === "skipWaiting") self.skipWaiting();
+});
+
+// Klick auf eine Einnahme-Erinnerung: vorhandenes App-Fenster fokussieren, sonst öffnen.
+self.addEventListener("notificationclick", function (e) {
+  e.notification.close();
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+      for (var i = 0; i < list.length; i++) {
+        var c = list[i];
+        if (c.url.indexOf("/app.html") !== -1 && "focus" in c) return c.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow("app.html");
+    })
+  );
 });
 
 self.addEventListener("fetch", function (e) {

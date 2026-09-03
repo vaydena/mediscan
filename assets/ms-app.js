@@ -6,7 +6,7 @@
   "use strict";
   var MS = window.MediScan;
   var DB_URL = "assets/data/mediscan-db.json";
-  var LS_SEL = "ms.sel", LS_PROF = "ms.profile", LS_PZN = "ms.pzn";
+  var LS_SEL = "ms.sel", LS_PROF = "ms.profile", LS_PZN = "ms.pzn", LS_PLANS = "ms.plans";
   var TESS_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   var ZXING_CDN = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
 
@@ -34,6 +34,9 @@
   var ready = false;
   var pznMap = {};            // gerätelokal gelernt: PZN(String) -> [medId,…]
   var pendingPZN = null;      // erkannte, noch nicht zugeordnete PZN
+  var plans = [];             // [{id,name,created,medIds:[…],times:[…],notify:bool}]
+  var openPlan = null;        // id des aktuell aufgeklappten Erinnerungs-Editors
+  var notifyTimers = [];      // aktive setTimeout-Handles der In-App-Erinnerungen
 
   // ---- Auswahl ---------------------------------------------------------------
   // Fügt eine Menge Med-IDs hinzu (ein Kombipräparat liefert mehrere).
@@ -118,6 +121,181 @@
       return '<span class="chip">' + esc(m.name) +
         '<small>' + esc(m.activeIngredient) + '</small>' +
         '<button class="x" data-id="' + id + '" aria-label="Entfernen">×</button></span>';
+    }).join("");
+  }
+
+  // ---- Pläne & Einnahme-Erinnerungen (gerätelokal) --------------------------
+  // Pläne = benannte Schnappschüsse der Auswahl. Erinnerungen ehrlich getrennt:
+  // Der ZUVERLÄSSIGE Weg ist der Kalender-Export (.ics) – die Termine feuern aus
+  // dem echten Kalender des Nutzers, komplett offline und bei geschlossener App.
+  // Die In-App-Erinnerung funktioniert nur, solange die App/der Tab offen ist
+  // (kein Server, keine Hintergrund-Pushes – das wäre Phase 2/SaaS). Nichts
+  // verlässt das Gerät.
+  function savePlans() { lsSet(LS_PLANS, plans); }
+  function planId() { return "p_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function findPlan(id) { for (var i = 0; i < plans.length; i++) if (plans[i].id === id) return plans[i]; return null; }
+  function planMedIds(plan) {
+    return (plan.medIds || []).map(function (x) { return parseInt(x, 10); })
+      .filter(function (id) { return !isNaN(id) && MS.medById(id); });
+  }
+  function planMedNames(plan) { return planMedIds(plan).map(function (id) { return MS.medById(id).name; }); }
+
+  function savePlanFromSelection() {
+    if (!selected.length) { toast("Bitte zuerst Medikamente hinzufügen."); return; }
+    var def = MS.medById(selected[0]) ? MS.medById(selected[0]).name : "Mein Plan";
+    if (selected.length > 1) def += " +" + (selected.length - 1);
+    var name = window.prompt("Name für diesen Plan:", def);
+    if (name === null) return;
+    name = (name || "").trim() || def;
+    plans.push({ id: planId(), name: name, created: Date.now(), medIds: selected.slice(), times: [], notify: false });
+    savePlans(); renderPlans();
+    toast("Plan „" + name + "“ gespeichert (nur auf diesem Gerät).");
+  }
+  function loadPlan(id) {
+    var p = findPlan(id); if (!p) return;
+    selected = planMedIds(p); lsSet(LS_SEL, selected);
+    renderChips(); maybeRerun();
+    toast("Plan „" + p.name + "“ geladen (" + selected.length + ").");
+    var sc = el("selCard"); if (sc && sc.scrollIntoView) sc.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function deletePlan(id) {
+    var p = findPlan(id); if (!p) return;
+    if (!window.confirm("Plan „" + p.name + "“ wirklich löschen?")) return;
+    plans = plans.filter(function (x) { return x.id !== id; });
+    if (openPlan === id) openPlan = null;
+    savePlans(); renderPlans(); scheduleAllReminders();
+    toast("Plan gelöscht.");
+  }
+  function renamePlan(id) {
+    var p = findPlan(id); if (!p) return;
+    var name = window.prompt("Plan umbenennen:", p.name);
+    if (name === null) return;
+    p.name = (name || "").trim() || p.name; savePlans(); renderPlans();
+  }
+  function addTime(id, val) {
+    var p = findPlan(id); if (!p) return;
+    var v = MS.ics.validTime(val);
+    if (!v) { toast("Bitte eine gültige Uhrzeit wählen (z. B. 08:00)."); return; }
+    p.times = p.times || [];
+    if (p.times.indexOf(v) !== -1) { toast("Diese Zeit ist bereits eingetragen."); return; }
+    p.times.push(v); p.times.sort();
+    savePlans(); renderPlans(); scheduleAllReminders();
+  }
+  function removeTime(id, t) {
+    var p = findPlan(id); if (!p) return;
+    p.times = (p.times || []).filter(function (x) { return x !== t; });
+    if (!p.times.length) p.notify = false;
+    savePlans(); renderPlans(); scheduleAllReminders();
+  }
+  function toggleNotify(id) {
+    var p = findPlan(id); if (!p) return;
+    if (p.notify) { p.notify = false; savePlans(); renderPlans(); scheduleAllReminders(); return; }
+    if (!(p.times && p.times.length)) { toast("Bitte zuerst eine Einnahmezeit hinzufügen."); return; }
+    if (!("Notification" in window)) { toast("Dieser Browser unterstützt keine Benachrichtigungen. Bitte den Kalender-Export (.ics) nutzen."); return; }
+    var enable = function () { p.notify = true; savePlans(); renderPlans(); scheduleAllReminders(); toast("In-App-Erinnerung aktiv – nur solange die App geöffnet ist."); };
+    if (Notification.permission === "granted") { enable(); return; }
+    if (Notification.permission === "denied") { toast("Benachrichtigungen sind im Browser blockiert. Bitte erlauben oder .ics nutzen."); return; }
+    try {
+      Notification.requestPermission().then(function (perm) {
+        if (perm === "granted") enable();
+        else toast("Ohne Erlaubnis keine In-App-Erinnerung. Der Kalender-Export (.ics) funktioniert weiterhin.");
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  function download(filename, text, mime) {
+    try {
+      var blob = new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 1500);
+      return true;
+    } catch (e) { toast("Download nicht möglich."); return false; }
+  }
+  function exportICS(id) {
+    var p = findPlan(id); if (!p) return;
+    var ics = MS.ics.build(p, planMedNames(p), new Date());
+    if (!ics) { toast("Bitte zuerst mindestens eine Einnahmezeit hinzufügen."); return; }
+    var safe = (p.name || "Plan").replace(/[^0-9A-Za-zäöüÄÖÜß-]+/g, "_").slice(0, 40) || "Plan";
+    if (download("MediScan_Erinnerung_" + safe + ".ics", ics, "text/calendar")) {
+      toast("Kalender-Datei erstellt. In Ihrem Kalender importieren – die Erinnerung feuert dann zuverlässig.");
+    }
+  }
+
+  // In-App-Erinnerungen (nur Vordergrund, best effort) ------------------------
+  function clearReminders() { notifyTimers.forEach(function (t) { clearTimeout(t); }); notifyTimers = []; }
+  function nextDelay(hhmm) {                    // ms bis zum nächsten Auftreten von HH:MM
+    var m = /^(\d{2}):(\d{2})$/.exec(hhmm); if (!m) return -1;
+    var now = new Date();
+    var t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), +m[1], +m[2], 0, 0);
+    if (t.getTime() <= now.getTime()) t.setDate(t.getDate() + 1);
+    return t.getTime() - now.getTime();
+  }
+  function fireReminder(plan, hhmm) {
+    var names = planMedNames(plan);
+    var body = names.length ? names.join(", ") : "Medikamente laut Plan";
+    var title = "Medikamente einnehmen – " + plan.name;
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(function (reg) {
+          reg.showNotification(title, { body: body, tag: "ms-" + plan.id + "-" + hhmm, icon: "assets/icons/icon-192.png", badge: "assets/icons/favicon-32.png", renotify: true });
+        }).catch(function () { try { new Notification(title, { body: body }); } catch (e) {} });
+      } else { new Notification(title, { body: body }); }
+    } catch (e) {}
+    armTime(plan, hhmm);                         // für den Folgetag neu scharf schalten
+  }
+  function armTime(plan, hhmm) {
+    var d = nextDelay(hhmm); if (d < 0) return;
+    notifyTimers.push(setTimeout(function () {   // sehr lange Timeouts sind unzuverlässig -> max ~24h
+      var live = findPlan(plan.id);
+      if (live && live.notify && (live.times || []).indexOf(hhmm) !== -1) fireReminder(live, hhmm);
+    }, Math.min(d, 24 * 3600 * 1000)));
+  }
+  function scheduleAllReminders() {
+    clearReminders();
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    plans.forEach(function (p) { if (p.notify) (p.times || []).forEach(function (t) { armTime(p, t); }); });
+  }
+
+  function renderPlans() {
+    var card = el("plansCard"), list = el("planList"), n = el("planN");
+    if (!card || !list) return;
+    if (n) n.textContent = plans.length;
+    if (!plans.length) { card.hidden = true; list.innerHTML = ""; return; }
+    card.hidden = false;
+    var notif = ("Notification" in window) ? Notification.permission : "unsupported";
+    list.innerHTML = plans.map(function (p) {
+      var names = planMedNames(p);
+      var preview = names.slice(0, 3).join(", ") + (names.length > 3 ? " +" + (names.length - 3) : "");
+      var open = openPlan === p.id;
+      var h = '<div class="mplan">';
+      h += '<div class="mplan-hd"><div class="mplan-nm"><b>' + esc(p.name) + '</b> <span class="n">' + names.length + '</span>' +
+        '<div class="mplan-prev small muted">' + esc(preview || "—") + '</div></div>';
+      h += '<div class="mplan-bt">' +
+        '<button type="button" class="btn small" data-act="load" data-id="' + esc(p.id) + '">Laden</button>' +
+        '<button type="button" class="btn ghost small" data-act="toggle" data-id="' + esc(p.id) + '">' + (open ? "Schließen" : "⏰ Erinnern") + '</button>' +
+        '<button type="button" class="btn ghost small" data-act="rename" data-id="' + esc(p.id) + '">Umbenennen</button>' +
+        '<button type="button" class="btn ghost small danger" data-act="del" data-id="' + esc(p.id) + '">Löschen</button>' +
+        '</div></div>';
+      if (open) {
+        h += '<div class="mplan-rem">';
+        h += '<div class="rem-times">' + ((p.times && p.times.length) ? p.times.map(function (t) {
+          return '<span class="timechip">' + esc(t) + '<button type="button" class="x" data-act="rmtime" data-id="' + esc(p.id) + '" data-t="' + esc(t) + '" aria-label="Zeit entfernen">×</button></span>';
+        }).join("") : '<span class="small muted">Noch keine Einnahmezeit.</span>') + '</div>';
+        h += '<div class="rem-add"><input type="time" class="tin" id="tin_' + esc(p.id) + '" value="08:00" aria-label="Einnahmezeit"><button type="button" class="btn ghost small" data-act="addtime" data-id="' + esc(p.id) + '">+ Zeit</button></div>';
+        h += '<div class="rem-actions">' +
+          '<button type="button" class="btn cyan small" data-act="ics" data-id="' + esc(p.id) + '">📅 Kalender-Datei (.ics)</button>' +
+          '<button type="button" class="btn ' + (p.notify ? "cyan" : "ghost") + ' small" data-act="notify" data-id="' + esc(p.id) + '">' + (p.notify ? "🔔 In-App-Erinnerung: an" : "🔔 In-App-Erinnerung") + '</button>' +
+          '</div>';
+        var note = '<b>Kalender (.ics):</b> zuverlässig – die Erinnerung kommt aus Ihrem Kalender, auch offline und bei geschlossener App. <b>In-App:</b> nur, solange diese App geöffnet ist.';
+        if (notif === "denied") note += ' Benachrichtigungen sind im Browser blockiert.';
+        else if (notif === "unsupported") note += ' Ihr Browser unterstützt keine In-App-Benachrichtigungen – bitte .ics nutzen.';
+        h += '<p class="small muted rem-note">' + note + '</p></div>';
+      }
+      h += '</div>';
+      return h;
     }).join("");
   }
 
@@ -527,6 +705,22 @@
     });
     el("clearBtn").addEventListener("click", clearSel);
 
+    // Pläne & Erinnerungen
+    var spb = el("savePlanBtn"); if (spb) spb.addEventListener("click", savePlanFromSelection);
+    var pl = el("planList");
+    if (pl) pl.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-act]"); if (!b) return;
+      var id = b.getAttribute("data-id"), act = b.getAttribute("data-act");
+      if (act === "load") loadPlan(id);
+      else if (act === "del") deletePlan(id);
+      else if (act === "rename") renamePlan(id);
+      else if (act === "toggle") { openPlan = (openPlan === id ? null : id); renderPlans(); }
+      else if (act === "addtime") { var tin = el("tin_" + id); addTime(id, tin ? tin.value : ""); }
+      else if (act === "rmtime") removeTime(id, b.getAttribute("data-t"));
+      else if (act === "ics") exportICS(id);
+      else if (act === "notify") toggleNotify(id);
+    });
+
     el("toggles").addEventListener("click", function (e) {
       var b = e.target.closest("button.toggle[data-key]"); if (b) toggleProfile(b.getAttribute("data-key"));
     });
@@ -557,6 +751,7 @@
     if (!MS) { toast("Fehler: Engine nicht geladen."); return; }
     profile = lsGet(LS_PROF, []) || [];
     pznMap = lsGet(LS_PZN, {}) || {};
+    plans = lsGet(LS_PLANS, []) || [];
     renderToggles();
     wire();
     var btn = el("analyzeBtn"); btn.disabled = true; btn.textContent = "Datenbank wird geladen …";
@@ -567,6 +762,7 @@
       selected = (lsGet(LS_SEL, []) || []).map(function (x) { return parseInt(x, 10); }).filter(function (id) { return !!MS.medById(id); });
       lsSet(LS_SEL, selected);
       renderChips();
+      renderPlans(); scheduleAllReminders();
       btn.disabled = false; btn.textContent = "Wechselwirkungen prüfen";
       setTab("manual");
     }).catch(function (err) {

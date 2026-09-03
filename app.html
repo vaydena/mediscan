@@ -99,7 +99,17 @@
   <section class="card" id="selCard" hidden>
     <h2>Ihre Medikamente <span class="n" id="selN">0</span></h2>
     <div class="chips" id="chips"></div>
-    <button class="btn ghost small" id="clearBtn" style="margin-top:12px;padding:8px 12px">Liste leeren</button>
+    <div class="selactions">
+      <button class="btn ghost small" id="savePlanBtn">💾 Als Plan speichern</button>
+      <button class="btn ghost small" id="clearBtn">Liste leeren</button>
+    </div>
+  </section>
+
+  <!-- Gespeicherte Pläne & Einnahme-Erinnerungen (gerätelokal) -->
+  <section class="card" id="plansCard" hidden>
+    <h2>Meine Pläne <span class="n" id="planN">0</span></h2>
+    <p class="small muted" style="margin:-4px 0 12px">Gespeicherte Medikamentenlisten – nur auf diesem Gerät. Für Einnahme-Erinnerungen exportieren Sie einen Kalender-Termin (<b>.ics</b>, zuverlässig über Ihren Kalender) oder aktivieren die In-App-Erinnerung.</p>
+    <div id="planList"></div>
   </section>
 
   <!-- Patientenprofil -->

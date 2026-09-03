@@ -173,6 +173,32 @@ function ok(name, cond, extra) {
   ok("PZN-Parse: 7-stellig -> 01234562", pSeven && pSeven.pzn === "01234562", JSON.stringify(pSeven));
   ok("PZN-Parse: Text ohne Nummer => null", MS.pzn.parse("kein code hier") === null);
 
+  // --- Kalender-Export (.ics) für Einnahme-Erinnerungen ---------------------
+  ok("Zeit: '8:00' -> '08:00'", MS.ics.validTime("8:00") === "08:00");
+  ok("Zeit: '23:59' gültig", MS.ics.validTime("23:59") === "23:59");
+  ok("Zeit: '24:00' ungültig", MS.ics.validTime("24:00") === null);
+  ok("Zeit: '12:60' ungültig", MS.ics.validTime("12:60") === null);
+  ok("Zeit: '8:5' ungültig (2-stellige Minuten nötig)", MS.ics.validTime("8:5") === null);
+  ok("ICS-Escape: Komma/Semikolon/Newline/Backslash",
+    MS.ics.escape("A, B; C\nD\\E") === "A\\, B\\; C\\nD\\\\E", MS.ics.escape("A, B; C\nD\\E"));
+
+  const now = new Date(2026, 8, 3, 10, 0, 0);   // lokal 2026-09-03 10:00
+  const plan = { id: "p_test", name: "Morgens, Abends", times: ["20:00", "08:00", "08:00"] };
+  const ics = MS.ics.build(plan, ["Ibuprofen", "ASS, 100"], now);
+  const cnt = (re) => (ics.match(re) || []).length;
+  ok("ICS: Gerüst VCALENDAR", /^BEGIN:VCALENDAR/.test(ics) && /END:VCALENDAR\r\n$/.test(ics));
+  ok("ICS: 2 VEVENT (Duplikat-Zeit entfernt)", cnt(/BEGIN:VEVENT/g) === 2, "n=" + cnt(/BEGIN:VEVENT/g));
+  ok("ICS: tägliche Wiederholung", cnt(/RRULE:FREQ=DAILY/g) === 2);
+  ok("ICS: VALARM je Termin", cnt(/BEGIN:VALARM/g) === 2 && /TRIGGER:PT0M/.test(ics));
+  ok("ICS: Datum heute + floating Zeit", ics.indexOf("DTSTART:20260903T080000") !== -1);
+  ok("ICS: Zeiten sortiert (08 vor 20)", ics.indexOf("T080000") < ics.indexOf("T200000"));
+  ok("ICS: UID trägt Plan-ID", /UID:p_test-20260903-0800@mediscan\.vaydena\.de/.test(ics));
+  ok("ICS: Komma im Plannamen escaped", /SUMMARY:.*Morgens\\, Abends/.test(ics));
+  ok("ICS: Komma im Medikamentennamen escaped", /DESCRIPTION:.*ASS\\, 100/.test(ics));
+  ok("ICS: CRLF-Zeilenenden", ics.indexOf("\r\n") !== -1);
+  ok("ICS: ohne gültige Zeit => null", MS.ics.build({ id: "x", name: "X", times: [] }, [], now) === null &&
+    MS.ics.build({ id: "x", name: "X", times: ["bogus"] }, [], now) === null);
+
   console.log("\n" + (fail === 0 ? "ALLE GRÜN" : fail + " FEHLGESCHLAGEN") + "  (" + pass + " ok, " + fail + " fail)");
   process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error("CRASH", e); process.exit(2); });
