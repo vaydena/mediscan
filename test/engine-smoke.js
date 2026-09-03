@@ -153,6 +153,37 @@ function ok(name, cond, extra) {
   });
   ok("kein Synonym zeigt komplett ins Leere", brokenSyn.length === 0, brokenSyn.slice(0, 5).join("; "));
 
+  // --- DB-Integrität: keine echten Medikamenten-Dubletten -------------------
+  // (früher: Valsartan 80/182 und Glucophage 35/242 doppelt -> 2026-09-03 zusammengeführt).
+  // Marken vs. Generika (Diovan/Valsartan, Glucophage/Metformin) haben UNTERSCHIEDLICHE
+  // Namen und sind erlaubt; verboten ist nur identischer Name UND Wirkstoff.
+  let medDupes = {};
+  rawDb.medications.forEach(m => {
+    let k = MS.norm(m.name) + "|" + MS.norm(m.activeIngredient);
+    (medDupes[k] = medDupes[k] || []).push(m.id);
+  });
+  let dupMeds = Object.keys(medDupes).filter(k => medDupes[k].length > 1);
+  ok("keine doppelten Medikamente (gleicher Name + Wirkstoff)", dupMeds.length === 0,
+    dupMeds.map(k => k + " ids=" + medDupes[k].join("/")).slice(0, 5).join("; "));
+  // keine Interaktion referenziert eine nicht-existente Med-ID / ist ein Selbstpaar
+  const medIdSet = new Set(rawDb.medications.map(m => m.id));
+  let badInter = rawDb.interactions.filter(x =>
+    !medIdSet.has(x.drugId1) || !medIdSet.has(x.drugId2) || x.drugId1 === x.drugId2);
+  ok("Interaktionen ohne dangling/Selbst-Referenz", badInter.length === 0,
+    badInter.slice(0, 5).map(x => "#" + x.id).join(","));
+  // komplexe Datensätze müssen konsistent sein: drugCount == Anzahl IDs == Anzahl Namen,
+  // keine doppelte ID, keine ID ohne Medikament (kein dangling). Brands desselben
+  // Wirkstoffs sind erlaubt (eigene IDs), aber keine exakte ID-Dublette in derselben Zeile.
+  let badComplex = rawDb.complex.filter(x => {
+    let ids = String(x.drugIds).split(",").map(n => parseInt(n, 10));
+    let names = String(x.drugNames).split(",").map(s => s.trim()).filter(Boolean);
+    let hasDup = ids.length !== new Set(ids).size;
+    let hasDangling = ids.some(i => !medIdSet.has(i));
+    return hasDup || hasDangling || ids.length !== x.drugCount || names.length !== x.drugCount;
+  });
+  ok("komplexe Sätze: drugCount == #IDs == #Namen, keine dup/dangling IDs", badComplex.length === 0,
+    badComplex.slice(0, 5).map(x => "#" + x.id + "(" + x.drugIds + "/" + x.drugCount + ")").join(", "));
+
   // --- PZN (Pharmazentralnummer): Prüfziffer + Parsing ----------------------
   // Testvektoren sind rein arithmetisch (mod-11), keine echten Präparate.
   ok("PZN-Prüfziffer: 03110083 gültig", MS.pzn.check("03110083"));
