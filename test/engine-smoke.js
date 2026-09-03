@@ -199,6 +199,41 @@ function ok(name, cond, extra) {
   ok("ICS: ohne gültige Zeit => null", MS.ics.build({ id: "x", name: "X", times: [] }, [], now) === null &&
     MS.ics.build({ id: "x", name: "X", times: ["bogus"] }, [], now) === null);
 
+  // --- Öffentliche FDA-Datenebene: Form + Anti-Fabrikations-Gate ------------
+  // mediscan-fda.json ist eine SEPARATE Ebene: nur wörtliche US-FDA-Originaltexte,
+  // je Med-ID entweder ein Textsatz oder null. KEINE abgeleiteten Schweregrade.
+  const FDA_PATH = path.join(__dirname, "..", "assets", "data", "mediscan-fda.json");
+  const fda = JSON.parse(fs.readFileSync(FDA_PATH, "utf8"));
+  ok("FDA: meta.source nennt openFDA", /openFDA/i.test(fda.meta && fda.meta.source), fda.meta && fda.meta.source);
+  ok("FDA: Lizenz Public Domain", /public domain/i.test(fda.meta && fda.meta.license), fda.meta && fda.meta.license);
+  ok("FDA: Feld drug_interactions (SPL 7)", /drug_interactions/.test(fda.meta && fda.meta.field), fda.meta && fda.meta.field);
+
+  const fdaKeys = Object.keys(fda.items || {});
+  const dbIds = new Set(rawDb.medications.map(m => String(m.id)));
+  let badKey = fdaKeys.filter(k => !dbIds.has(k));
+  ok("FDA: jede Med-ID existiert in der DB", badKey.length === 0, badKey.slice(0, 5).join(","));
+
+  const withText = fdaKeys.filter(k => fda.items[k] && fda.items[k].text);
+  ok("FDA: sinnvolle Abdeckung (>= 150 Meds mit Text)", withText.length >= 150, "n=" + withText.length + "/" + fdaKeys.length);
+
+  // jedes Record: entweder null, oder {text:string} – niemals ein abgeleiteter Schweregrad
+  const SEV_FIELDS = ["severity", "sev", "rank", "schweregrad", "level"];
+  let shapeBad = [], sevInjected = [];
+  fdaKeys.forEach(k => {
+    const v = fda.items[k];
+    if (v === null) return;
+    if (typeof v.text !== "string" || v.text.length < 20) shapeBad.push(k);
+    SEV_FIELDS.forEach(f => { if (f in v) sevInjected.push(k + "." + f); });
+  });
+  ok("FDA: Records haben brauchbaren Text (oder null)", shapeBad.length === 0, shapeBad.slice(0, 5).join(","));
+  ok("FDA: KEINE abgeleiteten Schweregrad-Felder (Anti-Fabrikation)", sevInjected.length === 0, sevInjected.slice(0, 5).join(","));
+
+  // Sanity: der Text ist echte englische FDA-Prosa, keine eingespritzten deutschen Wertungen
+  const DE_VERDICTS = /(Schwerwiegend|Kontraindiziert|Mäßig|Leicht|Vorsicht geboten)/;
+  let deInText = withText.filter(k => DE_VERDICTS.test(fda.items[k].text));
+  ok("FDA: keine deutschen MediScan-Wertungen im Originaltext", deInText.length === 0, deInText.slice(0, 3).join(","));
+  console.log("     FDA-Abdeckung:", withText.length, "von", fdaKeys.length, "Meds mit Original-Text");
+
   console.log("\n" + (fail === 0 ? "ALLE GRÜN" : fail + " FEHLGESCHLAGEN") + "  (" + pass + " ok, " + fail + " fail)");
   process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error("CRASH", e); process.exit(2); });

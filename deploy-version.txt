@@ -1,4 +1,4 @@
 mediscan
-build: ms-v1-5d1a8e
+build: ms-v1-8f4c2a
 date: 2026-09-03
-note: Plaene & Einnahme-Erinnerungen (geraetelokal): Auswahl als Plan speichern, laden, umbenennen, loeschen; Einnahmezeiten pro Plan; zuverlaessige .ics-Kalenderdatei (VEVENT+RRULE:FREQ=DAILY+VALARM) zum Import in den eigenen Kalender; optionale In-App-Benachrichtigung (nur bei geoeffneter App, ehrlich beschriftet). Keine erfundenen klinischen Daten.
+note: Ergaenzende oeffentliche FDA-Datenebene (openFDA drug/label, Abschnitt drug_interactions, Public Domain): 202 von 254 Medikamenten mit woertlicher, englischsprachiger Original-Fachinformation der US-FDA. Separate, lazy geladene Datei mediscan-fda.json; im Ergebnis als eingeklapptes Panel nach den kuratierten Ergebnissen, mit Quellenangabe und Hinweis "von MediScan nicht bewertet". Auch im PDF-Bericht. Keine abgeleiteten Schweregrade, keine erfundenen klinischen Daten. Tests 60/60 + 47/47 gruen. sw.js VERSION -> ms-v1-2026-09-03-6.

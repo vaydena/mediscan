@@ -226,3 +226,17 @@ footer .links{margin-bottom:10px}
 .legal h2{font-size:1.2rem;margin-top:1.4em}
 .legal p,.legal li{color:#283634}
 .back{display:inline-block;margin:16px 0;color:var(--cyan-d);font-weight:600;text-decoration:none}
+
+/* Ergänzende, öffentliche FDA-Datenebene (englisch, unverändert) */
+.fda-wrap{margin-top:4px}
+.fda-card{border-color:#cfe4e1}
+.fda-card h2{color:var(--petrol-d)}
+.fda-src{font-size:.86rem;color:var(--muted);margin:0 0 6px;line-height:1.5}
+.fda-item{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.fda-item summary{color:var(--cyan-d);margin-bottom:0}
+.fda-ingr{font-weight:500;color:var(--muted);font-size:.86rem}
+.fda-text{white-space:pre-wrap;font-size:.88rem;line-height:1.55;color:#2b3a38;
+  margin:8px 0 6px;background:#f7fbfb;border:1px solid var(--line);border-radius:10px;
+  padding:12px 14px;max-height:340px;overflow:auto}
+.fda-cite{font-size:.76rem;color:var(--muted);font-style:italic}
+.fda-foot{margin-top:12px;font-size:.76rem;color:var(--muted);text-align:right}

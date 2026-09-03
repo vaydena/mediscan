@@ -6,6 +6,7 @@
   "use strict";
   var MS = window.MediScan;
   var DB_URL = "assets/data/mediscan-db.json";
+  var FDA_URL = "assets/data/mediscan-fda.json";   // separate, öffentliche FDA-Datenebene (lazy)
   var LS_SEL = "ms.sel", LS_PROF = "ms.profile", LS_PZN = "ms.pzn", LS_PLANS = "ms.plans";
   var TESS_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   var ZXING_CDN = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
@@ -37,6 +38,8 @@
   var plans = [];             // [{id,name,created,medIds:[…],times:[…],notify:bool}]
   var openPlan = null;        // id des aktuell aufgeklappten Erinnerungs-Editors
   var notifyTimers = [];      // aktive setTimeout-Handles der In-App-Erinnerungen
+  var fdaData = null;         // { meta, items:{ "<medId>": {generic,brand,text}|null } } – öffentliche FDA-Ebene
+  var fdaPromise = null;      // Lade-Promise (nur einmal, lazy)
 
   // ---- Auswahl ---------------------------------------------------------------
   // Fügt eine Menge Med-IDs hinzu (ein Kombipräparat liefert mehrere).
@@ -515,6 +518,57 @@
   }
   function splitNames(s) { return String(s || "").split(/\s*[,;+/]\s*/).filter(Boolean); }
 
+  // ---- Öffentliche FDA-Datenebene (lazy, separat) ---------------------------
+  // Lädt die 0,6-MB-Datei mediscan-fda.json erst bei Bedarf (erste Analyse) und cached sie.
+  function loadFDA() {
+    if (fdaData) return Promise.resolve(fdaData);
+    if (fdaPromise) return fdaPromise;
+    fdaPromise = fetch(FDA_URL).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function (j) { fdaData = j; return j; }).catch(function (e) {
+      fdaPromise = null;           // Fehlschlag (z. B. offline & nicht gecached) → späterer Neuversuch möglich
+      throw e;
+    });
+    return fdaPromise;
+  }
+
+  // Baut aus der aktuellen Auswahl den ergänzenden FDA-Block in #fdaPanel.
+  // Bewusst: nur wörtliche Original-Angaben der US-FDA, KEINE eigene Bewertung/Schweregrade.
+  function ensureFDA() {
+    var host = el("fdaPanel");
+    if (!host) return;
+    var ids = selected.slice();
+    loadFDA().then(function (j) {
+      var items = (j && j.items) || {}, meta = (j && j.meta) || {};
+      var rows = ids.map(function (id) {
+        var rec = items[String(id)];
+        if (!rec || !rec.text) return null;
+        var m = MS.medById(id);
+        return { name: m ? m.name : ("#" + id), ingr: m ? m.activeIngredient : "", rec: rec };
+      }).filter(Boolean);
+      if (!rows.length) { host.hidden = true; host.innerHTML = ""; return; }
+      var hh = '<div class="card fda-card">';
+      hh += '<h2>Ergänzend: US-FDA-Fachinformation <span class="n">' + rows.length + '</span></h2>';
+      hh += '<p class="fda-src">Öffentliche Original-Angaben der US-Arzneimittelbehörde <b>FDA</b> – <b>englischsprachig</b> und <b>unverändert</b>. Ergänzende Quelle: von MediScan <u>nicht</u> bewertet oder in Schweregrade übersetzt; kann von deutschen Fachinformationen abweichen.</p>';
+      rows.forEach(function (row) {
+        hh += '<details class="fda-item"><summary>' + esc(row.name) +
+          (row.ingr ? ' <span class="fda-ingr">' + esc(row.ingr) + '</span>' : '') + '</summary>';
+        hh += '<div class="fda-text">' + esc(row.rec.text) + '</div>';
+        var brand = (row.rec.brand && row.rec.brand.length) ? row.rec.brand.join(", ") : "";
+        hh += '<div class="fda-cite">Quelle: openFDA drug/label · Abschnitt „' + esc(meta.field || "drug_interactions") +
+          '" · Public Domain (U.S. Government work)' + (brand ? ' · FDA-Label: ' + esc(brand) : '') + '</div>';
+        hh += '</details>';
+      });
+      hh += '<div class="fda-foot">Datenstand ' + esc(meta.retrieved || "") + ' · ' + esc(meta.source || "openFDA") + '</div>';
+      hh += '</div>';
+      host.innerHTML = hh;
+      host.hidden = false;
+    }).catch(function () {
+      host.hidden = true; host.innerHTML = "";   // offline & nicht gecached → still verbergen, kein Fehler-Lärm
+    });
+  }
+
   function renderResults(r) {
     var iN = r.interactions.length, cN = r.complex.length, rN = r.risks.length;
     var worst = 0;
@@ -561,10 +615,15 @@
       h += '</div>';
     }
 
+    // Platzhalter für die ergänzende, öffentliche FDA-Ebene (wird lazy befüllt).
+    h += '<section id="fdaPanel" class="fda-wrap" hidden></section>';
+
     h += '<div class="disclaimer" role="note" style="margin-top:6px"><b>⚠ Hinweis:</b> Diese Auswertung basiert auf einer hinterlegten Referenzdatenbank und ersetzt keine ärztliche oder pharmazeutische Beratung. Angaben können unvollständig sein.</div>';
 
     el("results").innerHTML = h;
-    var pdf = el("pdfBtn"); if (pdf) pdf.onclick = function () { makePDF(r); };
+    var pdf = el("pdfBtn");
+    if (pdf) pdf.onclick = function () { loadFDA().then(function () { makePDF(r); }, function () { makePDF(r); }); };
+    ensureFDA();
   }
   function stat(n, label) { return '<div class="stat"><b>' + n + '</b><span>' + esc(label) + '</span></div>'; }
 
@@ -662,6 +721,28 @@
 
     if (r.interactions.length + r.complex.length + r.risks.length === 0) {
       line("In der hinterlegten Datenbank wurden keine Wechselwirkungen oder Risiken zu dieser Kombination gefunden. Dies ist keine Garantie der Unbedenklichkeit.", 10, "normal", [40, 40, 40], 6);
+    }
+
+    // Ergänzende, öffentliche FDA-Angaben (nur falls bereits geladen; englisch, unverändert).
+    if (fdaData && fdaData.items) {
+      var fdaRows = selected.map(function (id) {
+        var rec = fdaData.items[String(id)];
+        if (!rec || !rec.text) return null;
+        var m = MS.medById(id); return { name: m ? m.name : ("#" + id), text: rec.text };
+      }).filter(Boolean);
+      if (fdaRows.length) {
+        ensure(30);
+        doc.setDrawColor(219, 232, 230); doc.line(M, y, M + CW, y); y += 12;
+        line("Ergaenzend: US-FDA-Fachinformation (" + fdaRows.length + ")", 13, "bold", [0, 77, 64], 2);
+        line("Oeffentliche Original-Angaben der US-FDA, englischsprachig und unveraendert. Von MediScan nicht bewertet oder in Schweregrade uebersetzt; kann von deutschen Fachinfos abweichen.", 8.5, "italic", [110, 110, 110], 4);
+        fdaRows.forEach(function (row) {
+          ensure(20);
+          line(row.name, 10.5, "bold", [0, 90, 80]);
+          line(row.text, 9, "normal", [51, 64, 62], 4);
+        });
+        var fmeta = fdaData.meta || {};
+        line("Quelle: " + (fmeta.source || "openFDA drug/label") + " · Public Domain · Datenstand " + (fmeta.retrieved || ""), 8, "italic", [130, 130, 130], 6);
+      }
     }
 
     ensure(60);

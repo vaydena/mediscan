@@ -1,7 +1,7 @@
 /* MediScan – Service Worker (Offline-Shell + Referenzdatenbank).
  * Bei App-Änderungen VERSION erhöhen → alter Cache wird verworfen.
  */
-var VERSION = "ms-v1-2026-09-03-5";
+var VERSION = "ms-v1-2026-09-03-6";
 var CACHE = "mediscan-" + VERSION;
 
 /* Alles, was die App offline braucht (inkl. der 1,4-MB-Referenz-DB und jsPDF). */
@@ -18,6 +18,7 @@ var SHELL = [
   "assets/ms-app.js",
   "assets/jspdf.umd.min.js",
   "assets/data/mediscan-db.json",
+  "assets/data/mediscan-fda.json",
   "assets/icons/icon-192.png",
   "assets/icons/icon-512.png",
   "assets/icons/icon-maskable-512.png",
