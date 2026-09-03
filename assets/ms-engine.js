@@ -382,11 +382,55 @@ window.MediScan = (function () {
     };
   }
 
+  // ---- PZN (Pharmazentralnummer) --------------------------------------------
+  // Deterministische, komplett offline PZN-Verarbeitung. WICHTIG: bewusst KEINE
+  // Zuordnung PZN -> Präparat – dafür gibt es kein lizenzfreies Register, und
+  // eine erfundene Zuordnung wäre ein Sicherheitsrisiko (falsches Medikament).
+  // Hier nur: Prüfziffer validieren + PZN aus Barcode-/Data-Matrix-Rohtext
+  // extrahieren. Die Zuordnung zu einem Präparat passiert ausschließlich
+  // gerätelokal durch die Nutzerin (siehe ms-app.js, ms.pzn-Map).
+  //
+  // PZN-8 (aktueller Standard): 7 Datenziffern + 1 Prüfziffer.
+  // Prüfziffer = (Σ ziffer_i · i, i = 1..7) mod 11 ; Ergebnis 10 => ungültig.
+  function pad8(s) { s = String(s == null ? "" : s).replace(/\D/g, ""); return s.length === 7 ? "0" + s : s; }
+  function pznCheck(raw) {
+    var s = String(raw == null ? "" : raw).replace(/\D/g, "");
+    if (s.length === 7) s = "0" + s;           // führende Null (PZN-7-Schreibweise)
+    if (s.length !== 8) return false;
+    var sum = 0;
+    for (var i = 0; i < 7; i++) sum += (i + 1) * (s.charCodeAt(i) - 48);
+    var c = sum % 11;
+    if (c === 10) return false;
+    return c === (s.charCodeAt(7) - 48);
+  }
+  // Findet eine prüfziffer-gültige PZN in beliebigem Barcode-/DataMatrix-/OCR-Text.
+  // Reihenfolge: (1) ausgezeichnete „PZN …", (2) deutsche Pharma-GTIN (Präfix 4150),
+  // (3) irgendeine Ziffernfolge (Länge 8, dann 7) mit gültiger PZN-Prüfziffer.
+  function pznParse(raw) {
+    var text = String(raw == null ? "" : raw);
+    var lab = text.match(/PZN[\s.:\-]*?(\d[\d\s]{5,8}\d)/i);          // (1)
+    if (lab) { var p = lab[1].replace(/\s/g, ""); if (pznCheck(p)) return { pzn: pad8(p), valid: true, source: "label" }; }
+    var g = text.replace(/\D/g, "").match(/4150(\d{8})/);            // (2)
+    if (g && pznCheck(g[1])) return { pzn: pad8(g[1]), valid: true, source: "gtin" };
+    var runs = text.match(/\d{7,}/g) || [];                          // (3)
+    for (var len = 8; len >= 7; len--) {
+      for (var r = 0; r < runs.length; r++) {
+        var run = runs[r];
+        for (var k = 0; k + len <= run.length; k++) {
+          var cand = run.substr(k, len);
+          if (pznCheck(cand)) return { pzn: pad8(cand), valid: true, source: "checksum" };
+        }
+      }
+    }
+    return null;
+  }
+
   return {
     load: load, meta: meta, medById: medById,
     detect: detect, search: search,
     interactionsFor: interactionsFor, complexFor: complexFor, risksFor: risksFor,
     analyze: analyze, sev: sev, norm: norm,
+    pzn: { parse: pznParse, check: pznCheck, pad8: pad8 },
     RISK_CATEGORIES: RISK_CATEGORIES
   };
 })();

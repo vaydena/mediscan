@@ -1,4 +1,4 @@
 mediscan
-build: ms-v1-c4a7e2
+build: ms-v1-3f9b2d
 date: 2026-09-03
-note: DE-Handelsnamen 293 inkl. Kombipraeparate (Multi-Wirkstoff), Autocomplete-Kombi-Badge
+note: PZN-/Barcode-Scan (Kamera BarcodeDetector + ZXing-Fallback, PZN-8-Pruefziffer), selbstlernende geraetelokale PZN->Praeparat-Zuordnung, manuelle PZN-Eingabe, OCR eingeklappt

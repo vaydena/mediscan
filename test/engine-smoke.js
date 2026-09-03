@@ -153,6 +153,26 @@ function ok(name, cond, extra) {
   });
   ok("kein Synonym zeigt komplett ins Leere", brokenSyn.length === 0, brokenSyn.slice(0, 5).join("; "));
 
+  // --- PZN (Pharmazentralnummer): Prüfziffer + Parsing ----------------------
+  // Testvektoren sind rein arithmetisch (mod-11), keine echten Präparate.
+  ok("PZN-Prüfziffer: 03110083 gültig", MS.pzn.check("03110083"));
+  ok("PZN-Prüfziffer: 12345678 gültig", MS.pzn.check("12345678"));
+  ok("PZN-Prüfziffer: 12345670 ungültig (falsche Prüfziffer)", !MS.pzn.check("12345670"));
+  ok("PZN-Prüfziffer: Rest 10 => ungültig (0000003X)", !MS.pzn.check("00000030") && !MS.pzn.check("00000035"));
+  ok("PZN-Prüfziffer: zu kurz/lang ungültig", !MS.pzn.check("123") && !MS.pzn.check("123456789"));
+
+  var pLabel = MS.pzn.parse("Beloc-Zok PZN-12345678, 30 St.");
+  ok("PZN-Parse: ausgezeichnete 'PZN-12345678'", pLabel && pLabel.pzn === "12345678" && pLabel.source === "label",
+    JSON.stringify(pLabel));
+  var pHyphen = MS.pzn.parse("-12345678");           // Code-39-Rohwert mit Bindestrich
+  ok("PZN-Parse: Code-39 '-12345678'", pHyphen && pHyphen.pzn === "12345678", JSON.stringify(pHyphen));
+  var pGtin = MS.pzn.parse("01)04150031100839(17)261130");   // GS1-DataMatrix mit Pharma-GTIN 4150…
+  ok("PZN-Parse: aus GTIN 4150+PZN abgeleitet", pGtin && pGtin.pzn === "03110083",
+    JSON.stringify(pGtin));
+  var pSeven = MS.pzn.parse("PZN 1234562");          // 7-stellige Schreibweise -> auf 8 normalisiert
+  ok("PZN-Parse: 7-stellig -> 01234562", pSeven && pSeven.pzn === "01234562", JSON.stringify(pSeven));
+  ok("PZN-Parse: Text ohne Nummer => null", MS.pzn.parse("kein code hier") === null);
+
   console.log("\n" + (fail === 0 ? "ALLE GRÜN" : fail + " FEHLGESCHLAGEN") + "  (" + pass + " ok, " + fail + " fail)");
   process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error("CRASH", e); process.exit(2); });

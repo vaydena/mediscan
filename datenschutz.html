@@ -59,20 +59,26 @@
     komfortablen Anwendung); die Speicherung ist technisch für den von Ihnen gewünschten Komfort
     erforderlich.</p>
 
-  <h2>3. Foto-Scan / Texterkennung (OCR)</h2>
-  <p>Wenn Sie die optionale Scan-Funktion nutzen, wird das aufgenommene Bild <b>auf Ihrem Gerät</b>
-    per Texterkennung (Bibliothek <i>Tesseract.js</i>) ausgewertet. Das Bild selbst wird nicht
-    hochgeladen. Beim <b>ersten</b> Nutzen der Scan-Funktion lädt Ihr Browser die dafür nötige
-    Programmbibliothek sowie ein deutsches Sprachpaket von öffentlichen Content-Delivery-Netzwerken
-    nach:</p>
+  <h2>3. Kamera-Scan (Barcode/PZN), Foto-Texterkennung (OCR)</h2>
+  <p>Die Scan-Funktionen sind optional. Sowohl der <b>Barcode-/PZN-Scan über die Kamera</b> als auch
+    die <b>Texterkennung eines Fotos</b> laufen vollständig <b>auf Ihrem Gerät</b>. Das Kamerabild bzw.
+    das Foto wird <b>nicht hochgeladen</b>. Für den Kamera-Scan bittet Ihr Browser um die Freigabe der
+    Kamera; die Freigabe können Sie jederzeit widerrufen.</p>
+  <p>Zur Barcode-Erkennung wird – sofern Ihr Browser keine eigene Erkennung mitbringt – die Bibliothek
+    <i>ZXing.js</i> nachgeladen; die Texterkennung nutzt <i>Tesseract.js</i> samt deutschem Sprachpaket.
+    Beim <b>ersten</b> Nutzen lädt Ihr Browser diese Programmbibliotheken bzw. Sprachdaten von
+    öffentlichen Content-Delivery-Netzwerken:</p>
   <ul>
-    <li><code>cdn.jsdelivr.net</code> (jsDelivr, Betreiber u. a. Cloudflare/Fastly) – Programmcode</li>
+    <li><code>cdn.jsdelivr.net</code> (jsDelivr, Betreiber u. a. Cloudflare/Fastly) – Programmcode (Tesseract.js, ZXing.js)</li>
     <li><code>tessdata.projectnaptha.com</code> – Sprachdaten für die Texterkennung</li>
   </ul>
   <p>Dabei wird technisch bedingt Ihre IP-Adresse an den jeweiligen Anbieter übertragen. Es werden
-    <b>keine Bild- oder Medikamentendaten</b> an diese Dienste gesendet. Rechtsgrundlage ist
+    <b>keine Bild-, Kamera- oder Medikamentendaten</b> an diese Dienste gesendet. Rechtsgrundlage ist
     Art. 6 Abs. 1 lit. f DSGVO (Bereitstellung der Scan-Funktion). Wenn Sie dies vermeiden möchten,
     nutzen Sie statt des Scans die manuelle Suche.</p>
+  <p>Ordnen Sie einer gescannten <b>PZN</b> ein Präparat zu, wird diese Zuordnung ausschließlich
+    <b>lokal auf Ihrem Gerät</b> (Browser-Speicher) abgelegt, damit dieselbe Packung später sofort
+    erkannt wird. Diese Zuordnung verlässt Ihr Gerät nicht und wird nicht an uns übertragen.</p>
 
   <h2>4. Bereitstellung der Website / Server-Logfiles</h2>
   <p>Beim Aufruf der Website verarbeitet unser Hosting-Anbieter zur technischen Auslieferung

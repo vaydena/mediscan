@@ -58,18 +58,41 @@
     </div>
 
     <div id="pane-scan" hidden>
-      <label class="drop" id="drop" for="file">
-        <input type="file" id="file" accept="image/*" capture="environment">
-        <div><b>Foto der Verpackung/des Beipackzettels wählen</b></div>
-        <div class="small muted">Der Text wird auf dem Gerät erkannt und mit der Wirkstoff-Datenbank abgeglichen.</div>
-        <img id="thumb" class="thumb" hidden alt="">
-      </label>
-      <div id="ocrbox" hidden>
-        <div class="progress"><i id="ocrbar"></i></div>
-        <div class="small muted" id="ocrmsg">Texterkennung …</div>
+      <!-- Live-Kamera: Barcode (PZN) / Data-Matrix -->
+      <div class="scanview" id="scanview" hidden>
+        <video id="scanvid" playsinline muted autoplay></video>
+        <div class="scanframe" aria-hidden="true"></div>
+        <button type="button" class="btn ghost small scanstop" id="scanStop">Stoppen</button>
       </div>
-      <p class="small muted" style="margin:10px 2px 0">Hinweis: Die Texterkennung lädt beim ersten Mal ein Sprachpaket (Internet nötig). Danach nutzen Sie am besten die Suche oder korrigieren erkannte Namen manuell.</p>
+      <button type="button" class="btn block cyan" id="scanStart">📷 Barcode / PZN mit Kamera scannen</button>
+      <p class="small muted" style="margin:8px 2px 0">Richten Sie den Strichcode (PZN) oder den quadratischen Data-Matrix-Code der Packung in den Rahmen.</p>
+
+      <!-- Manuelle PZN-Eingabe -->
+      <div class="pznrow">
+        <input type="text" id="pzn" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="PZN eingeben (z. B. 12345678) …" aria-label="PZN eingeben">
+        <button type="button" class="btn" id="pznBtn">Prüfen</button>
+      </div>
+      <p class="small muted" style="margin:6px 2px 0">Die PZN steht auf der Packung (z. B. „PZN-12345678"). Eine Zuordnung PZN→Präparat wird ausschließlich <b>auf diesem Gerät</b> gespeichert – es gibt kein zentrales Register.</p>
+
+      <!-- Foto/OCR (Namen erkennen) als Alternative -->
+      <details class="ocrdetails">
+        <summary>Alternativ: Foto der Packung – Namen per Texterkennung</summary>
+        <label class="drop" id="drop" for="file">
+          <input type="file" id="file" accept="image/*" capture="environment">
+          <div><b>Foto der Verpackung/des Beipackzettels wählen</b></div>
+          <div class="small muted">Der Text wird auf dem Gerät erkannt und mit der Wirkstoff-Datenbank abgeglichen.</div>
+          <img id="thumb" class="thumb" hidden alt="">
+        </label>
+        <div id="ocrbox" hidden>
+          <div class="progress"><i id="ocrbar"></i></div>
+          <div class="small muted" id="ocrmsg">Texterkennung …</div>
+        </div>
+        <p class="small muted" style="margin:10px 2px 0">Hinweis: Die Texterkennung lädt beim ersten Mal ein Sprachpaket (Internet nötig). Danach nutzen Sie am besten die Suche oder korrigieren erkannte Namen manuell.</p>
+      </details>
     </div>
+
+    <!-- Erkannte, noch nicht zugeordnete PZN (tab-übergreifend sichtbar) -->
+    <div id="pznPending" class="pznpending" hidden></div>
   </section>
 
   <!-- Ausgewählte Medikamente -->

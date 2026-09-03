@@ -89,6 +89,30 @@ img{max-width:100%}
   background:#e0f7fa;color:var(--cyan-d);font-size:.68rem;font-weight:700;vertical-align:middle;
   letter-spacing:.02em;text-transform:uppercase}
 
+/* Live-Kamera-Scan (Barcode / PZN) */
+.scanview{position:relative;border-radius:12px;overflow:hidden;background:#04211d;margin-bottom:10px;
+  aspect-ratio:4/3;max-height:60vh}
+.scanview video{width:100%;height:100%;object-fit:cover;display:block}
+.scanframe{position:absolute;inset:16% 10%;border:2px solid rgba(255,255,255,.9);border-radius:10px;
+  box-shadow:0 0 0 100vmax rgba(0,0,0,.28);pointer-events:none}
+.scanframe:after{content:"";position:absolute;left:0;right:0;top:50%;height:2px;
+  background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.scanstop{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.92)}
+/* PZN-Eingabe */
+.pznrow{display:flex;gap:8px;margin-top:14px}
+.pznrow input{flex:1;font:inherit;padding:13px 14px;border:1px solid var(--line);border-radius:12px;
+  letter-spacing:.06em}
+.pznrow input:focus{outline:0;border-color:var(--cyan)}
+.pznrow .btn{white-space:nowrap}
+.pznpending{margin-top:14px;display:flex;gap:12px;align-items:flex-start;
+  background:var(--warnbg);border:1px solid var(--warnln);border-radius:12px;padding:12px 14px}
+.pznpending .pzn-txt{font-size:.9rem;color:#6b5300;line-height:1.45}
+.pznpending .btn{flex:none;align-self:center}
+/* Foto/OCR-Klappbereich */
+.ocrdetails{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.ocrdetails summary{cursor:pointer;font-weight:600;color:var(--cyan-d);padding:4px 0}
+.ocrdetails[open] summary{margin-bottom:10px}
+
 /* Chips (ausgewählte Medikamente) */
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 .chip{display:inline-flex;align-items:center;gap:8px;background:#e0f2f1;color:var(--petrol-d);

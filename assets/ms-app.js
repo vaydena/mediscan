@@ -6,8 +6,9 @@
   "use strict";
   var MS = window.MediScan;
   var DB_URL = "assets/data/mediscan-db.json";
-  var LS_SEL = "ms.sel", LS_PROF = "ms.profile";
+  var LS_SEL = "ms.sel", LS_PROF = "ms.profile", LS_PZN = "ms.pzn";
   var TESS_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+  var ZXING_CDN = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
 
   // ---- kleine Helfer --------------------------------------------------------
   function el(id) { return document.getElementById(id); }
@@ -31,23 +32,73 @@
   var profile = [];           // category-keys
   var resultsShown = false;
   var ready = false;
+  var pznMap = {};            // gerätelokal gelernt: PZN(String) -> [medId,…]
+  var pendingPZN = null;      // erkannte, noch nicht zugeordnete PZN
 
   // ---- Auswahl ---------------------------------------------------------------
   // Fügt eine Menge Med-IDs hinzu (ein Kombipräparat liefert mehrere).
   function addByIds(ids) {
     if (!ids || !ids.length) return;
-    var added = 0, dup = 0;
+    var valid = [], added = 0, dup = 0;
     ids.forEach(function (raw) {
       var id = parseInt(raw, 10);
       if (isNaN(id) || !MS.medById(id)) return;
+      valid.push(id);
       if (selected.indexOf(id) !== -1) { dup++; return; }
       selected.push(id); added++;
     });
     if (added) { lsSet(LS_SEL, selected); renderChips(); maybeRerun(); }
+    // Wartet eine erkannte PZN auf Zuordnung? -> gerätelokal mit dieser Wahl merken.
+    if (pendingPZN && valid.length) {
+      linkPZN(pendingPZN, valid);
+      var nm = valid.map(function (id) { return MS.medById(id).name; }).join(" + ");
+      var learned = pendingPZN; pendingPZN = null; renderPending();
+      toast("PZN " + learned + " ↔ " + nm + " gemerkt (nur auf diesem Gerät).");
+      return;
+    }
     if (added > 1) toast(added + " Wirkstoffe hinzugefügt (Kombipräparat).");
     else if (!added && dup) toast("Bereits in der Liste.");
   }
   function addById(id) { addByIds([id]); }
+
+  // ---- PZN: gerätelokale Zuordnung (kein Register, keine erfundenen Daten) ----
+  function linkPZN(pzn, ids) {
+    var valid = (ids || []).map(function (x) { return parseInt(x, 10); })
+      .filter(function (id) { return !isNaN(id) && MS.medById(id); });
+    if (!pzn || !valid.length) return;
+    pznMap[pzn] = valid; lsSet(LS_PZN, pznMap);
+  }
+  function renderPending() {
+    var b = el("pznPending");
+    if (!b) return;
+    if (!pendingPZN) { b.hidden = true; b.innerHTML = ""; return; }
+    b.hidden = false;
+    b.innerHTML = '<div class="pzn-txt"><b>PZN ' + esc(pendingPZN) + '</b> erkannt – dieser Nummer ist noch ' +
+      'kein Präparat zugeordnet. Suchen Sie unten das passende Präparat und tippen Sie es an; ' +
+      'die Zuordnung wird <b>nur auf diesem Gerät</b> gespeichert.</div>' +
+      '<button type="button" class="btn ghost small" id="pznCancel">Verwerfen</button>';
+    var c = el("pznCancel"); if (c) c.onclick = function () { pendingPZN = null; renderPending(); };
+  }
+  // Zentraler Einstieg: roher Barcode-/Eingabetext -> PZN -> auto-add oder Zuordnungswunsch.
+  function handlePZN(rawText) {
+    var r = MS.pzn.parse(rawText);
+    if (!r) { toast("Keine gültige PZN erkannt. Bitte 8-stellige PZN prüfen."); return false; }
+    var pzn = r.pzn;
+    var known = pznMap[pzn];
+    if (known && known.length && known.some(function (id) { return MS.medById(id); })) {
+      pendingPZN = null; renderPending();
+      addByIds(known);
+      var nm = known.map(function (id) { var m = MS.medById(id); return m ? m.name : null; })
+        .filter(Boolean).join(" + ");
+      toast("PZN " + pzn + " erkannt → " + nm + ".");
+      setTab("manual");
+      return true;
+    }
+    pendingPZN = pzn; renderPending();
+    setTab("manual");
+    setTimeout(function () { var q = el("q"); if (q) q.focus(); }, 40);
+    return true;
+  }
   function removeId(id) {
     id = parseInt(id, 10);
     selected = selected.filter(function (x) { return x !== id; });
@@ -164,6 +215,89 @@
     }
   }
 
+  // ---- Live-Kamera-Scan (Barcode / PZN / Data-Matrix) -----------------------
+  // Bevorzugt die native BarcodeDetector-API (Android-Chrome/Edge), fällt sonst
+  // auf ZXing (lazy per CDN, nur online) zurück. Das Kamerabild wird ausschließlich
+  // auf dem Gerät verarbeitet – kein Upload.
+  var scanStream = null, scanRAF = null, scanDetector = null, scanReader = null, scanning = false;
+
+  function loadZXing() {
+    if (window.ZXing) return Promise.resolve();
+    return new Promise(function (res, rej) {
+      var s = document.createElement("script");
+      s.src = ZXING_CDN; s.async = true;
+      s.onload = res; s.onerror = function () { rej(new Error("CDN")); };
+      document.head.appendChild(s);
+    });
+  }
+  function onScanHit(r) {
+    stopScan();
+    try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
+    handlePZN("PZN " + r.pzn);
+  }
+  async function startScan() {
+    if (scanning) return;
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+      toast("Kamera wird von diesem Browser nicht unterstützt. Bitte PZN manuell eingeben."); return;
+    }
+    scanning = true;
+    el("scanStart").hidden = true; el("scanview").hidden = false;
+    var native = ("BarcodeDetector" in window);
+    if (native) {
+      try {
+        scanDetector = new window.BarcodeDetector({
+          formats: ["code_39", "ean_13", "ean_8", "data_matrix", "code_128", "itf", "qr_code"]
+        });
+      } catch (e) { scanDetector = null; native = false; }
+    }
+    try {
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+    } catch (e) {
+      scanning = false; el("scanview").hidden = true; el("scanStart").hidden = false;
+      toast("Kamerazugriff nicht möglich. Bitte erlauben oder PZN manuell eingeben."); return;
+    }
+    var vid = el("scanvid");
+    vid.srcObject = scanStream; try { await vid.play(); } catch (e) {}
+    if (scanDetector) scanLoopNative();
+    else scanLoopZXing();
+  }
+  function scanLoopNative() {
+    var vid = el("scanvid");
+    var tick = function () {
+      if (!scanning) return;
+      scanDetector.detect(vid).then(function (codes) {
+        if (!scanning) return;
+        for (var i = 0; codes && i < codes.length; i++) {
+          var r = MS.pzn.parse(codes[i].rawValue || "");
+          if (r) { onScanHit(r); return; }
+        }
+        scanRAF = requestAnimationFrame(tick);
+      }).catch(function () { if (scanning) scanRAF = requestAnimationFrame(tick); });
+    };
+    scanRAF = requestAnimationFrame(tick);
+  }
+  async function scanLoopZXing() {
+    try { await loadZXing(); }
+    catch (e) { stopScan(); toast("Barcode-Scanner konnte nicht geladen werden (Internet nötig). Bitte PZN manuell eingeben."); return; }
+    try {
+      var Z = window.ZXing;
+      scanReader = new Z.BrowserMultiFormatReader();
+      scanReader.decodeFromVideoElement(el("scanvid"), function (result) {
+        if (result && scanning) { var r = MS.pzn.parse(result.getText ? result.getText() : String(result)); if (r) onScanHit(r); }
+      });
+    } catch (e) { stopScan(); toast("Scanner-Fehler. Bitte PZN manuell eingeben."); }
+  }
+  function stopScan() {
+    scanning = false;
+    if (scanRAF) { cancelAnimationFrame(scanRAF); scanRAF = null; }
+    if (scanReader) { try { scanReader.reset(); } catch (e) {} scanReader = null; }
+    if (scanStream) { try { scanStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} scanStream = null; }
+    var vid = el("scanvid"); if (vid) { try { vid.pause(); vid.srcObject = null; } catch (e) {} }
+    scanDetector = null;
+    var v = el("scanview"), b = el("scanStart");
+    if (v) v.hidden = true; if (b) b.hidden = false;
+  }
+
   // ---- Tabs -----------------------------------------------------------------
   function setTab(which) {
     var man = which === "manual";
@@ -171,7 +305,7 @@
     el("tab-scan").setAttribute("aria-selected", !man);
     el("pane-manual").hidden = !man;
     el("pane-scan").hidden = man;
-    if (man) setTimeout(function () { el("q").focus(); }, 30);
+    if (man) { stopScan(); setTimeout(function () { el("q").focus(); }, 30); }
   }
 
   // ---- Analyse + Ergebnis-Rendering -----------------------------------------
@@ -401,6 +535,20 @@
       var f = e.target.files && e.target.files[0]; if (f) runOCR(f);
     });
 
+    // PZN: manuelle Eingabe + Prüfen
+    var pzn = el("pzn");
+    if (pzn) {
+      var doPzn = function () { var v = pzn.value; if (!v.trim()) return; if (handlePZN(v)) pzn.value = ""; };
+      el("pznBtn").addEventListener("click", doPzn);
+      pzn.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); doPzn(); } });
+    }
+    // PZN: Kamera-Scan
+    var ss = el("scanStart"); if (ss) ss.addEventListener("click", startScan);
+    var sp = el("scanStop"); if (sp) sp.addEventListener("click", stopScan);
+    // Kamera bei Tab-/Seitenwechsel oder Verstecken stoppen (Akku/Datenschutz).
+    document.addEventListener("visibilitychange", function () { if (document.hidden) stopScan(); });
+    window.addEventListener("pagehide", stopScan);
+
     el("analyzeBtn").addEventListener("click", analyze);
   }
 
@@ -408,6 +556,7 @@
   function boot() {
     if (!MS) { toast("Fehler: Engine nicht geladen."); return; }
     profile = lsGet(LS_PROF, []) || [];
+    pznMap = lsGet(LS_PZN, {}) || {};
     renderToggles();
     wire();
     var btn = el("analyzeBtn"); btn.disabled = true; btn.textContent = "Datenbank wird geladen …";
