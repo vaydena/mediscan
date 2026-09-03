@@ -33,13 +33,21 @@
   var ready = false;
 
   // ---- Auswahl ---------------------------------------------------------------
-  function addById(id) {
-    id = parseInt(id, 10);
-    if (isNaN(id) || !MS.medById(id)) return;
-    if (selected.indexOf(id) !== -1) { toast("Bereits in der Liste."); return; }
-    selected.push(id); lsSet(LS_SEL, selected);
-    renderChips(); maybeRerun();
+  // Fügt eine Menge Med-IDs hinzu (ein Kombipräparat liefert mehrere).
+  function addByIds(ids) {
+    if (!ids || !ids.length) return;
+    var added = 0, dup = 0;
+    ids.forEach(function (raw) {
+      var id = parseInt(raw, 10);
+      if (isNaN(id) || !MS.medById(id)) return;
+      if (selected.indexOf(id) !== -1) { dup++; return; }
+      selected.push(id); added++;
+    });
+    if (added) { lsSet(LS_SEL, selected); renderChips(); maybeRerun(); }
+    if (added > 1) toast(added + " Wirkstoffe hinzugefügt (Kombipräparat).");
+    else if (!added && dup) toast("Bereits in der Liste.");
   }
+  function addById(id) { addByIds([id]); }
   function removeId(id) {
     id = parseInt(id, 10);
     selected = selected.filter(function (x) { return x !== id; });
@@ -68,10 +76,12 @@
     var ac = el("ac");
     acItems = list; acActive = list.length ? 0 : -1;
     if (!list.length) { ac.hidden = true; ac.innerHTML = ""; return; }
-    ac.innerHTML = list.map(function (m, i) {
-      return '<button type="button" data-id="' + m.id + '" class="' + (i === 0 ? "active" : "") + '">' +
-        '<div>' + esc(m.name) + '</div>' +
-        '<div class="ing">' + esc(m.activeIngredient) + (m.category ? " · " + esc(m.category) : "") + '</div></button>';
+    ac.innerHTML = list.map(function (p, i) {
+      var combo = p.ids && p.ids.length > 1;
+      var tag = combo ? ' <span class="ac-combo">Kombi</span>' : '';
+      return '<button type="button" data-idx="' + i + '" class="' + (i === 0 ? "active" : "") + '">' +
+        '<div>' + esc(p.name) + tag + '</div>' +
+        '<div class="ing">' + esc(p.sub) + (p.category ? " · " + esc(p.category) : "") + '</div></button>';
     }).join("");
     ac.hidden = false;
   }
@@ -84,8 +94,8 @@
     if (btns[acActive]) btns[acActive].scrollIntoView({ block: "nearest" });
   }
   function commitAC() {
-    if (acActive >= 0 && acItems[acActive]) { addById(acItems[acActive].id); }
-    else if (acItems[0]) { addById(acItems[0].id); }
+    var p = (acActive >= 0 && acItems[acActive]) ? acItems[acActive] : acItems[0];
+    if (p) addByIds(p.ids);
     el("q").value = ""; closeAC();
   }
 
@@ -134,8 +144,13 @@
       setBar(100, "Abgleich mit Datenbank …");
       var text = (out && out.data && out.data.text) || "";
       var found = MS.detect(text);
+      var toAdd = [];
+      found.forEach(function (f) {
+        (f.ids && f.ids.length ? f.ids : [f.medId]).forEach(function (id) { if (toAdd.indexOf(id) === -1) toAdd.push(id); });
+      });
       var added = 0;
-      found.forEach(function (f) { if (selected.indexOf(f.medId) === -1) { addById(f.medId); added++; } });
+      toAdd.forEach(function (id) { if (selected.indexOf(id) === -1 && MS.medById(id)) { selected.push(id); added++; } });
+      if (added) { lsSet(LS_SEL, selected); renderChips(); maybeRerun(); }
       setTimeout(function () { showOCR(false); }, 700);
       if (added) toast(added + " Medikament" + (added > 1 ? "e" : "") + " erkannt und hinzugefügt.");
       else if (found.length) toast("Erkannte Medikamente sind bereits in der Liste.");
@@ -366,7 +381,8 @@
       else if (e.key === "Escape") { closeAC(); }
     });
     el("ac").addEventListener("click", function (e) {
-      var b = e.target.closest("button[data-id]"); if (b) { addById(b.getAttribute("data-id")); q.value = ""; closeAC(); q.focus(); }
+      var b = e.target.closest("button[data-idx]");
+      if (b) { var p = acItems[parseInt(b.getAttribute("data-idx"), 10)]; if (p) addByIds(p.ids); q.value = ""; closeAC(); q.focus(); }
     });
     document.addEventListener("click", function (e) {
       if (!el("ac").hidden && !e.target.closest("#pane-manual .field")) closeAC();

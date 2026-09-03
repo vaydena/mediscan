@@ -65,6 +65,10 @@ window.MediScan = (function () {
   function fold(s) {
     return norm(s).replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
   }
+  // Title-Case für die Anzeige von (klein gespeicherten) Handelsnamen.
+  function cap(s) {
+    return String(s || "").replace(/(^|[\s\-\/])([a-zäöü])/g, function (_m, sep, ch) { return sep + ch.toUpperCase(); });
+  }
 
   // Levenshtein mit Frühabbruch (max)
   function lev(a, b, max) {
@@ -114,17 +118,32 @@ window.MediScan = (function () {
       foldResolve[fold(m.name)] = fIng;
       foldResolve[fIng] = fIng;
     }
-    // validierte Handelsnamen -> Wirkstoff -> alle Med-IDs dieses Wirkstoffs
+    // validierte Handelsnamen -> Wirkstoff(e) -> repräsentative Med-IDs.
+    // Wert ist String (Einzelwirkstoff) ODER Array (Kombipräparat, z. B.
+    // „Janumet" = Metformin + Sitagliptin). Nicht gelistete Bestandteile werden
+    // übersprungen (nie erfunden); bleibt kein bekannter Wirkstoff, entfällt der Eintrag.
     var syn = DB.synonyms || {};
+    var synResolve = {};   // norm(Handelsname) -> [medId,…]  (ein Med je auflösbarem Wirkstoff)
     Object.keys(syn).forEach(function (k) {
-      var ingN = norm(syn[k]);
-      var ids = ingredientToIds[ingN];
-      if (!ids || !ids.length) return;
-      terms.push({ t: norm(k), medId: ids[0], ing: ingN, syn: true });
-      foldResolve[fold(k)] = fold(syn[k]);   // Handelsname -> Wirkstoff (gefaltet)
+      var val = syn[k];
+      var ingList = Array.isArray(val) ? val : [val];
+      var medIds = [], firstIng = null, seenIng = {};
+      for (var s = 0; s < ingList.length; s++) {
+        var ingN = norm(ingList[s]);
+        if (seenIng[ingN]) continue; seenIng[ingN] = 1;
+        var ids = ingredientToIds[ingN];
+        if (ids && ids.length) { medIds.push(ids[0]); if (!firstIng) firstIng = ingN; }
+      }
+      if (!medIds.length) return;                 // Handelsname nennt keinen bekannten Wirkstoff
+      var nk = norm(k);
+      synResolve[nk] = medIds;
+      terms.push({ t: nk, medId: medIds[0], ing: firstIng, syn: true,
+                   combo: medIds.length > 1 ? medIds.slice() : null });
+      foldResolve[fold(k)] = fold(ingList[0]);    // Handelsname -> (erster) Wirkstoff, gefaltet
     });
 
-    IDX = { medById: medById, ingredientToIds: ingredientToIds, terms: terms, foldResolve: foldResolve };
+    IDX = { medById: medById, ingredientToIds: ingredientToIds, terms: terms,
+            foldResolve: foldResolve, synResolve: synResolve };
   }
 
   async function load(url) {
@@ -168,7 +187,7 @@ window.MediScan = (function () {
       if (score > 0) {
         var cur = bestByIng[term.ing];
         if (!cur || score > cur.score) {
-          bestByIng[term.ing] = { medId: term.medId, term: t, score: score, syn: !!term.syn };
+          bestByIng[term.ing] = { medId: term.medId, term: t, score: score, syn: !!term.syn, combo: term.combo || null };
         }
       }
     }
@@ -179,8 +198,9 @@ window.MediScan = (function () {
       var m = IDX.medById[b.medId];
       if (!m) return;
       out.push({
-        medId: m.id, name: m.name, ingredient: m.activeIngredient,
-        category: m.category, term: b.term, score: b.score, syn: b.syn
+        medId: m.id, ids: b.combo ? b.combo.slice() : [m.id],
+        name: m.name, ingredient: m.activeIngredient,
+        category: m.category, term: b.term, score: b.score, syn: b.syn, combo: !!b.combo
       });
     });
     out.sort(function (a, b) { return b.score - a.score; });
@@ -188,12 +208,15 @@ window.MediScan = (function () {
   }
 
   // ---- Autocomplete-Suche (manuelles Hinzufügen) ----------------------------
+  // Liefert einheitliche „pick"-Objekte: { ids:[medId,…], name, sub, category, via }.
+  // Ein Kombipräparat trägt mehrere ids; die UI fügt beim Auswählen alle hinzu.
   function search(query, limit) {
     if (!IDX) return [];
     var q = norm(query);
     if (q.length < 2) return [];
     limit = limit || 12;
     var scored = [];
+    // direkte Medikamenten-/Wirkstoff-Treffer
     for (var id in IDX.medById) {
       var m = IDX.medById[id];
       var nName = norm(m.name), nIng = norm(m.activeIngredient);
@@ -201,21 +224,31 @@ window.MediScan = (function () {
       if (nName === q || nIng === q) s = 100;
       else if (nName.indexOf(q) === 0 || nIng.indexOf(q) === 0) s = 80;
       else if (nName.indexOf(q) !== -1 || nIng.indexOf(q) !== -1) s = 60;
-      if (s > 0) scored.push({ med: m, s: s });
+      if (s > 0) scored.push({ ids: [m.id], name: m.name, sub: m.activeIngredient, category: m.category, via: null, s: s, key: "m" + m.id });
     }
-    // Handelsnamen-Treffer
+    // Handelsnamen-Treffer (inkl. Kombipräparate)
     var syn = DB.synonyms || {};
     Object.keys(syn).forEach(function (k) {
-      if (norm(k).indexOf(q) === 0) {
-        var ids = IDX.ingredientToIds[norm(syn[k])];
-        if (ids && ids[0]) scored.push({ med: IDX.medById[ids[0]], s: 70, via: k });
+      var nk = norm(k), s = 0;
+      if (nk === q) s = 95;
+      else if (nk.indexOf(q) === 0) s = 78;
+      else if (q.length >= 3 && nk.indexOf(q) !== -1) s = 58;
+      if (!s) return;
+      var ids = IDX.synResolve[nk];
+      if (!ids || !ids.length) return;
+      if (ids.length === 1) {
+        var mm = IDX.medById[ids[0]];
+        scored.push({ ids: [mm.id], name: mm.name, sub: mm.activeIngredient, category: mm.category, via: k, s: s, key: "m" + mm.id });
+      } else {
+        var subs = ids.map(function (i) { return IDX.medById[i].activeIngredient; }).join(" + ");
+        scored.push({ ids: ids.slice(), name: cap(k), sub: subs, category: "Kombipräparat", via: k, s: s + 3, key: "c" + nk });
       }
     });
     scored.sort(function (a, b) { return b.s - a.s; });
     var seen = {}, res = [];
     for (var i = 0; i < scored.length && res.length < limit; i++) {
-      if (seen[scored[i].med.id]) continue;
-      seen[scored[i].med.id] = 1; res.push(scored[i].med);
+      if (seen[scored[i].key]) continue;
+      seen[scored[i].key] = 1; res.push(scored[i]);
     }
     return res;
   }

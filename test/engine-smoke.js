@@ -49,12 +49,12 @@ function ok(name, cond, extra) {
   ok("synonym: Beloc -> Metoprolol", si.includes("Metoprolol"), JSON.stringify(si));
   ok("synonym: Voltaren -> Diclofenac", si.includes("Diclofenac"), JSON.stringify(si));
 
-  // --- Autocomplete ---
+  // --- Autocomplete (neue „pick"-Form: {ids,name,sub,category}) ---
   let q = MS.search("simva");
-  ok("suche 'simva' findet Simvastatin", q.some(m => /simvastatin/i.test(m.activeIngredient)), q.map(m=>m.name).join(","));
+  ok("suche 'simva' findet Simvastatin", q.some(m => /simvastatin/i.test(m.sub)), q.map(m=>m.name).join(","));
 
   // --- Paarweise Wechselwirkung ASS x Ibuprofen ---
-  function idOf(name) { let r = MS.search(name); return r.length ? r[0].id : null; }
+  function idOf(name) { let r = MS.search(name); return r.length ? r[0].ids[0] : null; }
   let assId = MS.detect("Aspirin")[0].medId;
   let ibuId = MS.detect("Ibuprofen")[0].medId;
   let inter = MS.interactionsFor([assId, ibuId]);
@@ -79,7 +79,7 @@ function ok(name, cond, extra) {
   // --- Patientenrisiken: Profil Schwangerschaft ---
   // Zuordnung läuft über medicationName (der FK medicationId ist in der DB unbrauchbar).
   // Ein SCHWANGERSCHAFT-Risiko wählen, dessen Präparat auch wirklich wählbar ist.
-  function medIdByName(nm) { let r = MS.search(nm); return r.length ? r[0].id : null; }
+  function medIdByName(nm) { let r = MS.search(nm); return r.length ? r[0].ids[0] : null; }
   let prg = raw.risks.find(r => r.category === "SCHWANGERSCHAFT" && medIdByName(r.medicationName));
   let prgId = medIdByName(prg.medicationName);
   let r0 = MS.risksFor([prgId], ["SCHWANGERSCHAFT"]);
@@ -108,6 +108,50 @@ function ok(name, cond, extra) {
   ok("Ibuprofen/Schwangerschaft nur Ibuprofen-Wirkstoff",
     ibuRisks.every(x => /ibuprofen/i.test(x.ingredient)),
     "ings=" + [...new Set(ibuRisks.map(x => x.ingredient))].join(","));
+
+  // --- Erweiterte Handelsnamen-Datenbank ---
+  ok("Synonym-DB erweitert (>= 250)", meta.counts.synonyms >= 250, "n=" + meta.counts.synonyms);
+  let newSyn = MS.detect("Patient nimmt Seroquel und Xarelto");
+  let nsi = newSyn.map(x => x.ingredient);
+  ok("neuer Handelsname Seroquel -> Quetiapin", nsi.includes("Quetiapin"), JSON.stringify(nsi));
+
+  // --- Kombipräparate: ein Handelsname -> mehrere Wirkstoffe ---
+  let jm = MS.search("janumet");
+  let jmPick = jm.find(p => p.ids.length > 1);
+  ok("Kombi 'Janumet' liefert 2 Wirkstoffe (Pick)", !!jmPick && jmPick.ids.length === 2,
+    jmPick ? jmPick.sub : "kein Kombi-Pick");
+  if (jmPick) {
+    let jmIngs = jmPick.ids.map(id => MS.medById(id).activeIngredient).sort();
+    ok("Janumet = Metformin + Sitagliptin",
+      jmIngs.includes("Metformin") && jmIngs.includes("Sitagliptin"), jmIngs.join(" + "));
+  }
+  // Kombi über OCR-Detect: beide Bestandteile werden als ids geliefert
+  let dj = MS.detect("Janumet 50 mg/1000 mg");
+  let djIds = []; dj.forEach(f => (f.ids || [f.medId]).forEach(i => { if (djIds.indexOf(i) === -1) djIds.push(i); }));
+  let djIngs = djIds.map(i => MS.medById(i).activeIngredient);
+  ok("Detect 'Janumet' fügt beide Wirkstoffe hinzu",
+    djIngs.includes("Metformin") && djIngs.includes("Sitagliptin"), djIngs.join(" + "));
+  // Kombi Targin = Oxycodon + Naloxon
+  let tg = MS.search("targin").find(p => p.ids.length > 1);
+  let tgIngs = tg ? tg.ids.map(id => MS.medById(id).activeIngredient).sort() : [];
+  ok("Kombi 'Targin' = Oxycodon + Naloxon",
+    tgIngs.includes("Oxycodon") && tgIngs.includes("Naloxon"), tgIngs.join(" + "));
+  // Kombi wirkt in der Analyse: Delix plus (Ramipril+HCT) + ein NSAR -> Triple-Whammy-Nähe
+  let dpPick = MS.search("delix plus").find(p => p.ids.length > 1);
+  ok("Kombi 'Delix plus' = Ramipril + HCT", !!dpPick &&
+    dpPick.ids.map(id => MS.medById(id).activeIngredient).sort().join("+") === "Hydrochlorothiazid+Ramipril",
+    dpPick ? dpPick.sub : "n/a");
+
+  // --- DB-Integrität: jeder Synonym-Wirkstoff existiert wirklich ---
+  const rawDb = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
+  const ingNorm = new Set(rawDb.medications.map(m => MS.norm(m.activeIngredient)));
+  let brokenSyn = [];
+  Object.keys(rawDb.synonyms).forEach(k => {
+    let v = rawDb.synonyms[k]; let list = Array.isArray(v) ? v : [v];
+    // mind. EIN Bestandteil muss existieren (Kombis dürfen nicht-gelistete Zusatzstoffe nennen)
+    if (!list.some(x => ingNorm.has(MS.norm(x)))) brokenSyn.push(k + " -> " + JSON.stringify(v));
+  });
+  ok("kein Synonym zeigt komplett ins Leere", brokenSyn.length === 0, brokenSyn.slice(0, 5).join("; "));
 
   console.log("\n" + (fail === 0 ? "ALLE GRÜN" : fail + " FEHLGESCHLAGEN") + "  (" + pass + " ok, " + fail + " fail)");
   process.exit(fail === 0 ? 0 : 1);

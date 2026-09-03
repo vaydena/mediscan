@@ -1,4 +1,4 @@
 mediscan
-build: ms-v1-8b4d1a
+build: ms-v1-c4a7e2
 date: 2026-09-03
-note: Phase 1 - kuratierte DE-DB, Risiko-Zuordnung ueber medicationName gefixt
+note: DE-Handelsnamen 293 inkl. Kombipraeparate (Multi-Wirkstoff), Autocomplete-Kombi-Badge
