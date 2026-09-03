@@ -1,0 +1,4 @@
+mediscan
+build: ms-v1-8b4d1a
+date: 2026-09-03
+note: Phase 1 - kuratierte DE-DB, Risiko-Zuordnung ueber medicationName gefixt

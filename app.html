@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MediScan – Wechselwirkungen prüfen</title>
+<meta name="description" content="Medikamente scannen oder eingeben und auf Wechselwirkungen sowie Patientenrisiken prüfen. Offline nutzbar. Kein Ersatz für ärztliche Beratung.">
+<meta name="theme-color" content="#00695c">
+<meta name="color-scheme" content="light">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MediScan">
+<meta name="application-name" content="MediScan">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="assets/mediscan.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html" aria-label="MediScan Startseite">
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="37" height="37" rx="9" fill="#004d40"/>
+        <rect x="8" y="16.5" width="24" height="7.6" rx="3.8" fill="#fff"/>
+        <rect x="20" y="16.5" width="12" height="7.6" rx="3.8" fill="#00acc1"/>
+        <rect x="19.2" y="16.5" width="1.6" height="7.6" fill="#004d40"/>
+        <rect x="5.5" y="19.1" width="29" height="2.2" rx="1.1" fill="#00acc1"/>
+      </svg>
+      <span><b>MediScan</b><small>Wechselwirkungs-Check</small></span>
+    </a>
+    <span class="sp"></span>
+    <a class="nav" href="index.html">Start</a>
+  </div>
+</header>
+
+<main class="wrap" id="app">
+  <div class="disclaimer" role="note">
+    <b>⚠ Wichtiger Hinweis:</b> MediScan dient ausschließlich der Information und ersetzt
+    <b>keine ärztliche oder pharmazeutische Beratung</b>. Treffen Sie keine Therapieentscheidung
+    allein aufgrund dieser Angaben. Fragen Sie bei Wechselwirkungen Ihre Ärztin/Ihren Arzt oder Ihre Apotheke.
+  </div>
+
+  <!-- Eingabe -->
+  <section class="card">
+    <h2>1. Medikamente erfassen</h2>
+    <div class="seg" role="tablist">
+      <button id="tab-manual" role="tab" aria-selected="true">🔎 Suchen &amp; hinzufügen</button>
+      <button id="tab-scan" role="tab" aria-selected="false">📷 Foto scannen</button>
+    </div>
+
+    <div id="pane-manual">
+      <div class="field">
+        <input type="text" id="q" autocomplete="off" placeholder="Medikament oder Wirkstoff (z. B. Ibuprofen, Marcumar) …" aria-label="Medikament suchen">
+        <div class="ac" id="ac" hidden></div>
+      </div>
+      <p class="small muted" style="margin:8px 2px 0">Tippen Sie einen Namen oder Wirkstoff – auch Handelsnamen wie „Beloc" oder „Godamed".</p>
+    </div>
+
+    <div id="pane-scan" hidden>
+      <label class="drop" id="drop" for="file">
+        <input type="file" id="file" accept="image/*" capture="environment">
+        <div><b>Foto der Verpackung/des Beipackzettels wählen</b></div>
+        <div class="small muted">Der Text wird auf dem Gerät erkannt und mit der Wirkstoff-Datenbank abgeglichen.</div>
+        <img id="thumb" class="thumb" hidden alt="">
+      </label>
+      <div id="ocrbox" hidden>
+        <div class="progress"><i id="ocrbar"></i></div>
+        <div class="small muted" id="ocrmsg">Texterkennung …</div>
+      </div>
+      <p class="small muted" style="margin:10px 2px 0">Hinweis: Die Texterkennung lädt beim ersten Mal ein Sprachpaket (Internet nötig). Danach nutzen Sie am besten die Suche oder korrigieren erkannte Namen manuell.</p>
+    </div>
+  </section>
+
+  <!-- Ausgewählte Medikamente -->
+  <section class="card" id="selCard" hidden>
+    <h2>Ihre Medikamente <span class="n" id="selN">0</span></h2>
+    <div class="chips" id="chips"></div>
+    <button class="btn ghost small" id="clearBtn" style="margin-top:12px;padding:8px 12px">Liste leeren</button>
+  </section>
+
+  <!-- Patientenprofil -->
+  <section class="card">
+    <h2>2. Patientenprofil <span class="n">optional</span></h2>
+    <p class="small muted" style="margin:-4px 0 12px">Aktivieren Sie zutreffende Punkte, um zusätzlich auf besondere Risiken zu prüfen.</p>
+    <div class="toggles" id="toggles"></div>
+  </section>
+
+  <button class="btn lg block cyan" id="analyzeBtn">Wechselwirkungen prüfen</button>
+
+  <!-- Ergebnisse -->
+  <section id="results" hidden></section>
+</main>
+
+<script src="assets/jspdf.umd.min.js"></script>
+<script src="assets/ms-engine.js"></script>
+<script src="assets/ms-app.js"></script>
+<script>
+(function () {
+  if (!("serviceWorker" in navigator)) return;
+  if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+})();
+</script>
+</body>
+</html>

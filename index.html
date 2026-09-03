@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MediScan – Medikamenten-Wechselwirkungen prüfen</title>
+<meta name="description" content="Medikamente scannen oder eingeben und in Sekunden auf Wechselwirkungen und individuelle Patientenrisiken prüfen. Offline nutzbar, ohne Anmeldung. Kein Ersatz für ärztliche Beratung.">
+<meta name="theme-color" content="#00695c">
+<meta name="color-scheme" content="light">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MediScan">
+<meta name="application-name" content="MediScan">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="assets/mediscan.css">
+<meta property="og:type" content="website">
+<meta property="og:title" content="MediScan – Wechselwirkungen prüfen">
+<meta property="og:description" content="Medikamente scannen oder eingeben und auf Wechselwirkungen sowie Patientenrisiken prüfen. Offline nutzbar.">
+<meta property="og:image" content="assets/icons/icon-512.png">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html" aria-label="MediScan Startseite">
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="37" height="37" rx="9" fill="#004d40"/>
+        <rect x="8" y="16.5" width="24" height="7.6" rx="3.8" fill="#fff"/>
+        <rect x="20" y="16.5" width="12" height="7.6" rx="3.8" fill="#00acc1"/>
+        <rect x="19.2" y="16.5" width="1.6" height="7.6" fill="#004d40"/>
+        <rect x="5.5" y="19.1" width="29" height="2.2" rx="1.1" fill="#00acc1"/>
+      </svg>
+      <span><b>MediScan</b><small>Wechselwirkungs-Check</small></span>
+    </a>
+    <span class="sp"></span>
+    <a class="nav" href="app.html">Zur App</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Medikamente sicher kombinieren.</h1>
+    <p class="lead">Geben Sie Ihre Medikamente ein oder scannen Sie die Verpackung – MediScan prüft
+      in Sekunden auf <b>Wechselwirkungen</b> und <b>individuelle Risiken</b> und erstellt auf
+      Wunsch ein PDF für das Arzt- oder Apothekengespräch.</p>
+    <div class="cta">
+      <a class="btn lg cyan" href="app.html">Jetzt prüfen</a>
+      <a class="btn lg ghost" href="#how">Wie es funktioniert</a>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+  <div class="disclaimer" role="note" style="margin-top:20px">
+    <b>⚠ Wichtiger Hinweis:</b> MediScan ist ein <b>Informations- und Nachschlagewerkzeug</b> und
+    ersetzt <b>keine ärztliche oder pharmazeutische Beratung</b>. Treffen Sie keine
+    Therapieentscheidung – insbesondere kein Absetzen oder Umstellen von Medikamenten – allein
+    aufgrund dieser App. Fragen Sie im Zweifel Ihre Ärztin/Ihren Arzt oder Ihre Apotheke.
+  </div>
+
+  <section class="section" id="features" style="padding-top:10px">
+    <h2>Was MediScan kann</h2>
+    <p class="sub">Entwickelt für den Alltag: schnell, verständlich und ohne Anmeldung.</p>
+    <div class="features">
+      <div class="feature">
+        <div class="ic" aria-hidden="true">🔎</div>
+        <h3>Suchen &amp; scannen</h3>
+        <p>Medikament oder Wirkstoff eintippen – auch Handelsnamen wie „Beloc" oder „Marcumar" –
+          oder ein Foto der Verpackung aufnehmen. Die Texterkennung läuft auf Ihrem Gerät.</p>
+      </div>
+      <div class="feature">
+        <div class="ic" aria-hidden="true">⚠️</div>
+        <h3>Wechselwirkungen</h3>
+        <p>MediScan erkennt bekannte Wechselwirkungen zwischen zwei oder mehreren Wirkstoffen und
+          stuft sie nach Schweregrad ein – mit verständlicher Erklärung.</p>
+      </div>
+      <div class="feature">
+        <div class="ic" aria-hidden="true">🧑‍⚕️</div>
+        <h3>Patientenprofil</h3>
+        <p>Optional berücksichtigt die Prüfung besondere Situationen wie Schwangerschaft,
+          Nieren- oder Leberschwäche, hohes Alter oder Kinder.</p>
+      </div>
+      <div class="feature">
+        <div class="ic" aria-hidden="true">📄</div>
+        <h3>PDF fürs Gespräch</h3>
+        <p>Erstellen Sie mit einem Klick eine übersichtliche Zusammenfassung als PDF – ideal zum
+          Mitnehmen in die Praxis oder Apotheke.</p>
+      </div>
+      <div class="feature">
+        <div class="ic" aria-hidden="true">📴</div>
+        <h3>Offline &amp; als App</h3>
+        <p>Nach dem ersten Laden funktioniert MediScan ohne Internet. Über „Zum Startbildschirm
+          hinzufügen" nutzen Sie es wie eine installierte App.</p>
+      </div>
+      <div class="feature">
+        <div class="ic" aria-hidden="true">🔒</div>
+        <h3>Privat by Design</h3>
+        <p>Ihre Medikamentenliste verlässt das Gerät nicht. Keine Konten, keine Cookies, kein
+          Tracking – die Auswertung passiert vollständig im Browser.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how">
+    <h2>In drei Schritten</h2>
+    <p class="sub">Vom Medikament zur Einschätzung in unter einer Minute.</p>
+    <div class="features">
+      <div class="feature">
+        <div class="ic" aria-hidden="true">1</div>
+        <h3>Medikamente erfassen</h3>
+        <p>Über die Suche hinzufügen oder die Verpackung fotografieren. Beliebig viele Präparate
+          lassen sich kombinieren.</p>
+      </div>
+      <div class="feature">
+        <div class="ic" aria-hidden="true">2</div>
+        <h3>Profil wählen</h3>
+        <p>Zutreffende Punkte antippen – etwa „Ältere Menschen" oder „Niereninsuffizienz" – um
+          zusätzlich auf besondere Risiken zu prüfen.</p>
+      </div>
+      <div class="feature">
+        <div class="ic" aria-hidden="true">3</div>
+        <h3>Prüfen &amp; besprechen</h3>
+        <p>Ergebnis nach Schweregrad lesen, bei Bedarf als PDF sichern und mit Ärztin/Arzt oder
+          Apotheke besprechen.</p>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:8px">
+      <a class="btn lg cyan" href="app.html">MediScan öffnen</a>
+    </div>
+  </section>
+
+  <section class="section" id="data">
+    <h2>Woher die Daten kommen</h2>
+    <p class="sub">Transparenz ist bei Gesundheitsthemen Pflicht.</p>
+    <div class="card">
+      <p style="margin-top:0">Die Wechselwirkungs- und Risikohinweise stammen aus einer
+        <b>kuratierten Referenzdatenbank</b>. MediScan gibt <b>keine automatisch generierten oder
+        statistisch geschätzten</b> medizinischen Aussagen aus – angezeigt werden nur geprüfte
+        Inhalte. Die Datenbank wird laufend um deutsche Handelsnamen und Wirkstoffe ergänzt.</p>
+      <p>Trotz sorgfältiger Pflege kann eine Datenbank nie vollständig sein: Ein <b>fehlender
+        Treffer bedeutet nicht, dass keine Wechselwirkung besteht.</b> MediScan ersetzt keine
+        fachliche Prüfung im Einzelfall.</p>
+      <p style="margin-bottom:0"><b>Datenschutz:</b> Medikamentendaten werden ausschließlich lokal
+        auf Ihrem Gerät verarbeitet und nicht an einen Server übertragen. Näheres in der
+        <a href="datenschutz.html">Datenschutzerklärung</a>.</p>
+    </div>
+  </section>
+
+  <section class="section" id="ausblick">
+    <h2>Geplant</h2>
+    <p class="sub">MediScan wird weiterentwickelt. In Vorbereitung:</p>
+    <div class="card">
+      <ul style="margin:0;padding-left:20px">
+        <li>Gespeicherte Medikamentenpläne &amp; Wiedererkennung über mehrere Geräte</li>
+        <li>Erweiterte Wirkstoff-Abdeckung aus zusätzlichen, lizenzsauberen Quellen</li>
+        <li>Erinnerungen und Druck-/Teilen-Funktionen für Angehörige und Pflege</li>
+      </ul>
+      <p class="small muted" style="margin-bottom:0">Diese Funktionen sind in Planung; der
+        Wechselwirkungs-Check bleibt kostenlos nutzbar.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="app.html">App</a>
+      <a href="impressum.html">Impressum</a>
+      <a href="datenschutz.html">Datenschutz</a>
+      <a href="agb.html">Nutzungsbedingungen</a>
+    </div>
+    <div>© 2026 MediScan · Ein Informationswerkzeug – kein Medizinprodukt zur Diagnose oder
+      Therapie. Im Notfall wählen Sie den ärztlichen Notdienst (116 117) oder den Notruf (112).</div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  if (!("serviceWorker" in navigator)) return;
+  if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+/* MediScan – gemeinsames Stylesheet (Landing + App). Mobile-first, ohne Framework.
+   Theme abgeleitet aus der Original-App: Petrol #00695c / Dark #004D40 / Cyan #00ACC1. */
+:root{
+  --petrol:#00695c; --petrol-d:#004d40; --cyan:#00acc1; --cyan-d:#0097a7;
+  --bg:#f1fafa; --card:#ffffff; --ink:#152826; --muted:#5c6f6c; --line:#dbe8e6;
+  --sev1:#388e3c; --sev1bg:#e8f5e9; --sev2:#f57c00; --sev2bg:#fff3e0;
+  --sev3:#e53935; --sev3bg:#ffebee; --sev4:#b71c1c; --sev4bg:#f9e0e0;
+  --warn:#f57f17; --warnbg:#fff8e1; --warnln:#ffe082;
+  --radius:14px; --shadow:0 1px 3px rgba(0,60,50,.08),0 6px 20px rgba(0,60,50,.06);
+  --maxw:760px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  color:var(--ink);background:var(--bg);line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:var(--cyan-d)}
+h1,h2,h3{line-height:1.25;margin:0 0 .4em}
+img{max-width:100%}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 16px}
+
+/* Kopf */
+.topbar{position:sticky;top:0;z-index:20;background:var(--petrol);color:#fff;
+  box-shadow:0 2px 10px rgba(0,60,50,.18)}
+.topbar .wrap{display:flex;align-items:center;gap:12px;height:56px}
+.brand{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font-weight:700}
+.brand .logo{width:32px;height:32px;flex:0 0 auto}
+.brand b{font-size:1.12rem;letter-spacing:.2px}
+.brand small{display:block;font-size:.62rem;font-weight:600;opacity:.85;letter-spacing:.14em;text-transform:uppercase;margin-top:-2px}
+.topbar .sp{flex:1}
+.topbar a.nav{color:#d6f2ee;text-decoration:none;font-size:.9rem;font-weight:600;padding:6px 10px;border-radius:8px}
+.topbar a.nav:hover{background:rgba(255,255,255,.12)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  font:inherit;font-weight:700;border:0;border-radius:11px;padding:12px 18px;cursor:pointer;
+  background:var(--petrol);color:#fff;text-decoration:none;transition:filter .12s,transform .04s}
+.btn:hover{filter:brightness(1.06)} .btn:active{transform:translateY(1px)}
+.btn.block{width:100%}
+.btn.lg{padding:15px 22px;font-size:1.05rem;border-radius:13px}
+.btn.ghost{background:#fff;color:var(--petrol);border:1.5px solid var(--line)}
+.btn.ghost:hover{background:#f5fbfa;filter:none}
+.btn.cyan{background:var(--cyan-d)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn .sp{width:16px;height:16px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Karten */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px;margin:14px 0}
+.card h2{font-size:1.06rem;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.card h2 .n{margin-left:auto;background:var(--bg);color:var(--muted);font-size:.8rem;
+  font-weight:700;padding:2px 10px;border-radius:999px}
+.muted{color:var(--muted)}
+.small{font-size:.86rem}
+.hr{height:1px;background:var(--line);border:0;margin:14px 0}
+
+/* Disclaimer */
+.disclaimer{background:var(--warnbg);border:1px solid var(--warnln);border-radius:12px;
+  padding:12px 14px;margin:14px 0;font-size:.9rem;color:#6b4e00}
+.disclaimer b{color:var(--warn)}
+
+/* Eingabe-Umschalter */
+.seg{display:flex;background:var(--bg);border-radius:12px;padding:4px;gap:4px;margin-bottom:14px}
+.seg button{flex:1;border:0;background:transparent;font:inherit;font-weight:700;color:var(--muted);
+  padding:10px;border-radius:9px;cursor:pointer}
+.seg button[aria-selected="true"]{background:#fff;color:var(--petrol);box-shadow:var(--shadow)}
+
+/* Datei-Drop / Kamera */
+.drop{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;background:#fbfefe}
+.drop input{display:none}
+.thumb{max-height:200px;border-radius:10px;margin:10px auto 0;display:block}
+.progress{height:8px;background:var(--bg);border-radius:999px;overflow:hidden;margin:12px 0 4px}
+.progress i{display:block;height:100%;width:0;background:var(--cyan);transition:width .2s}
+
+/* Suche + Autocomplete */
+.field{position:relative}
+.field input[type=text],.field input:not([type]){width:100%;font:inherit;padding:13px 14px;
+  border:1.5px solid var(--line);border-radius:11px;background:#fff}
+.field input:focus{outline:0;border-color:var(--cyan)}
+.ac{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);
+  border-radius:11px;box-shadow:var(--shadow);z-index:15;max-height:280px;overflow:auto}
+.ac button{display:block;width:100%;text-align:left;border:0;background:#fff;font:inherit;
+  padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--line)}
+.ac button:last-child{border-bottom:0}
+.ac button:hover,.ac button.active{background:var(--bg)}
+.ac .ing{color:var(--muted);font-size:.84rem}
+
+/* Chips (ausgewählte Medikamente) */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.chip{display:inline-flex;align-items:center;gap:8px;background:#e0f2f1;color:var(--petrol-d);
+  border-radius:999px;padding:7px 8px 7px 14px;font-weight:600;font-size:.92rem}
+.chip .x{width:22px;height:22px;border:0;border-radius:50%;background:rgba(0,77,64,.12);color:var(--petrol-d);
+  font-size:1rem;line-height:1;cursor:pointer}
+.chip .x:hover{background:rgba(0,77,64,.22)}
+.chip small{font-weight:500;opacity:.8}
+
+/* Profil-Schalter */
+.toggles{display:flex;flex-wrap:wrap;gap:8px}
+.toggle{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--line);background:#fff;
+  border-radius:999px;padding:8px 13px;font-weight:600;font-size:.9rem;cursor:pointer;color:var(--muted)}
+.toggle[aria-pressed="true"]{border-color:var(--cyan);background:#e0f7fa;color:var(--cyan-d)}
+.toggle .dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.toggle[aria-pressed="true"] .dot{background:var(--cyan)}
+
+/* Ergebnis-Statistik */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:6px}
+.stat{background:var(--bg);border-radius:11px;padding:12px 8px;text-align:center}
+.stat b{display:block;font-size:1.5rem;line-height:1;color:var(--petrol)}
+.stat span{font-size:.72rem;color:var(--muted);font-weight:600}
+@media(max-width:520px){.stat b{font-size:1.25rem}.stat span{font-size:.66rem}}
+
+/* Ergebnis-Karten (Wechselwirkung / Risiko) */
+.res{border:1px solid var(--line);border-left-width:6px;border-radius:12px;background:#fff;
+  padding:13px 14px;margin:10px 0;position:relative}
+.res .head{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
+.res .ttl{font-weight:700;font-size:.98rem}
+.res .badge{flex:0 0 auto;font-size:.72rem;font-weight:800;padding:3px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em}
+.res .pair{font-size:.9rem;color:var(--petrol-d);font-weight:600;margin:6px 0}
+.res .pair .arrow{color:var(--muted);margin:0 6px}
+.res .desc{font-size:.9rem;color:#33403e;margin-top:6px}
+.res .rec{font-size:.88rem;margin-top:8px;padding:9px 11px;background:var(--bg);border-radius:9px}
+.res .rec b{color:var(--petrol-d)}
+.res .sys{font-size:.8rem;color:var(--muted);margin-top:6px}
+.res .more{background:none;border:0;color:var(--cyan-d);font:inherit;font-weight:700;padding:6px 0 0;cursor:pointer}
+.res .medtags{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+.res .medtag{background:#e0f2f1;color:var(--petrol-d);border-radius:7px;padding:3px 9px;font-size:.8rem;font-weight:600}
+.sev1{border-left-color:var(--sev1)} .sev1 .badge{background:var(--sev1bg);color:var(--sev1)}
+.sev2{border-left-color:var(--sev2)} .sev2 .badge{background:var(--sev2bg);color:var(--sev2)}
+.sev3{border-left-color:var(--sev3)} .sev3 .badge{background:var(--sev3bg);color:var(--sev3)}
+.sev4{border-left-color:var(--sev4)} .sev4 .badge{background:var(--sev4bg);color:var(--sev4)}
+.sev0{border-left-color:var(--muted)} .sev0 .badge{background:var(--bg);color:var(--muted)}
+
+/* Leerer Zustand / Erfolg */
+.empty{text-align:center;padding:26px 14px;color:var(--muted)}
+.empty .big{font-size:2.2rem}
+.ok-note{background:var(--sev1bg);border:1px solid #b8e0bd;color:#1b5e20;border-radius:11px;padding:12px 14px;font-weight:600}
+
+/* To?ns / Hinweise */
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:12px 18px;border-radius:11px;box-shadow:var(--shadow);z-index:60;font-weight:600;max-width:90vw;text-align:center}
+
+/* Landing */
+.hero{background:linear-gradient(160deg,var(--petrol),var(--petrol-d));color:#fff;padding:54px 0 46px}
+.hero h1{font-size:2.1rem;margin-bottom:.3em}
+.hero p.lead{font-size:1.12rem;opacity:.95;max-width:52ch}
+.hero .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}
+.hero .btn.ghost{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.35)}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:26px 0}
+.feature{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.feature .ic{width:42px;height:42px;border-radius:11px;background:#e0f2f1;display:grid;place-items:center;font-size:1.3rem;margin-bottom:10px}
+.feature h3{font-size:1.02rem;margin:0 0 4px}
+.feature p{margin:0;color:var(--muted);font-size:.92rem}
+.price{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:20px 0}
+.plan{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.plan.hi{border:2px solid var(--cyan)}
+.plan h3{font-size:1.1rem;margin:0 0 2px}
+.plan .amt{font-size:1.8rem;font-weight:800;color:var(--petrol);margin:6px 0}
+.plan .amt small{font-size:.8rem;color:var(--muted);font-weight:600}
+.plan ul{list-style:none;padding:0;margin:10px 0 16px;flex:1}
+.plan li{padding:5px 0 5px 24px;position:relative;font-size:.92rem}
+.plan li:before{content:"✓";position:absolute;left:0;color:var(--cyan-d);font-weight:800}
+.section{padding:28px 0}
+.section h2{font-size:1.5rem;text-align:center;margin-bottom:6px}
+.section .sub{text-align:center;color:var(--muted);max-width:56ch;margin:0 auto 8px}
+footer{background:var(--petrol-d);color:#cfe8e4;padding:26px 0;margin-top:30px;font-size:.9rem}
+footer a{color:#fff;text-decoration:none;margin-right:16px}
+footer .links{margin-bottom:10px}
+
+/* Legal-Seiten */
+.legal{max-width:760px;margin:0 auto;padding:24px 16px 60px}
+.legal h1{font-size:1.6rem}
+.legal h2{font-size:1.2rem;margin-top:1.4em}
+.legal p,.legal li{color:#283634}
+.back{display:inline-block;margin:16px 0;color:var(--cyan-d);font-weight:600;text-decoration:none}
