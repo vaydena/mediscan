@@ -15,8 +15,169 @@
 <link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/mediscan.css">
+<style>
+/* ---- Zugangs-Sperre (Bestätigungscode) ---- */
+#ms-gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:radial-gradient(1000px 480px at 50% -10%,rgba(0,105,92,.10),transparent),#eef4f3}
+#ms-gate[hidden]{display:none!important}
+#ms-gate .box{max-width:440px;width:100%;background:#fff;border:1px solid #cfe3df;border-radius:18px;
+  box-shadow:0 10px 34px rgba(4,60,55,.14);padding:30px 26px;text-align:center}
+#ms-gate .glogo{width:54px;height:54px;margin:0 auto 14px;display:block;border-radius:13px}
+#ms-gate h2{margin:0 0 8px;color:#00695c;font-size:1.3rem;line-height:1.25}
+#ms-gate p{margin:6px 0;color:#3a5a55;font-size:.96rem;line-height:1.55}
+#ms-gate a{color:#00695c}
+#ms-gate .spin{width:30px;height:30px;margin:16px auto 6px;border:3px solid #cfe3df;border-top-color:#00897b;border-radius:50%;animation:msgspin .8s linear infinite}
+@keyframes msgspin{to{transform:rotate(360deg)}}
+#ms-gate .gin{width:100%;font-size:1.05rem;letter-spacing:.05em;text-align:center;text-transform:uppercase;
+  border:1.5px solid #cfe3df;border-radius:12px;padding:13px 12px;margin:14px 0 2px;background:#fbfdfc;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;box-sizing:border-box}
+#ms-gate .gin:focus{outline:none;border-color:#00897b;box-shadow:0 0 0 3px rgba(0,137,123,.18)}
+#ms-gate .gbtn{display:block;width:100%;box-sizing:border-box;border:0;cursor:pointer;font:inherit;font-weight:700;font-size:1rem;
+  padding:13px 18px;border-radius:999px;background:#00897b;color:#fff;margin-top:10px}
+#ms-gate .gbtn:hover{background:#00695c}
+#ms-gate .gbtn.sec{background:transparent;color:#00695c;border:2px solid #cfe3df}
+#ms-gate .gerr{color:#b3261e;font-weight:600;font-size:.9rem;margin:8px 2px 0;min-height:1.1em}
+#ms-gate .gfoot{margin-top:16px;font-size:.85rem;color:#6f8a85;line-height:1.7}
+@media (prefers-reduced-motion:reduce){ #ms-gate .spin{animation:none} }
+body.ms-locked{overflow:hidden}
+</style>
 </head>
 <body>
+<!-- ===== Zugangs-Sperre: Freischaltung per Bestätigungscode ===== -->
+<div id="ms-gate" role="dialog" aria-live="polite" aria-label="MediScan freischalten">
+  <div class="box">
+    <svg class="glogo" viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="37" height="37" rx="9" fill="#004d40"/>
+      <rect x="8" y="16.5" width="24" height="7.6" rx="3.8" fill="#fff"/>
+      <rect x="20" y="16.5" width="12" height="7.6" rx="3.8" fill="#00acc1"/>
+      <rect x="19.2" y="16.5" width="1.6" height="7.6" fill="#004d40"/>
+      <rect x="5.5" y="19.1" width="29" height="2.2" rx="1.1" fill="#00acc1"/>
+    </svg>
+    <div id="ms-gate-body">
+      <h2>Zugang wird geprüft …</h2>
+      <div class="spin"></div>
+      <p>Einen Moment bitte.</p>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  "use strict";
+  var CFG = { fn:"https://xeuexovdipdiiuzjpzkj.supabase.co/functions/v1", key:"sb_publishable_3dLuQ2PfEsjavJyl0fmkaA_DXB8ZS6f", lic:"ms.lic" };
+  var d=document, gate=d.getElementById("ms-gate"), gb=d.getElementById("ms-gate-body");
+  function lock(on){ d.body.classList.toggle("ms-locked", !!on); }
+  function openApp(){ gate.hidden=true; lock(false); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+  function norm(s){ return String(s==null?"":s).toUpperCase().replace(/[^A-Z0-9]/g,""); }
+
+  function readLic(){ try{ return JSON.parse(localStorage.getItem(CFG.lic)||"null"); }catch(e){ return null; } }
+  function writeLic(o){ try{ localStorage.setItem(CFG.lic, JSON.stringify(o)); }catch(e){} }
+  function clearLic(){ try{ localStorage.removeItem(CFG.lic); }catch(e){} }
+
+  function post(path,body){
+    return fetch(CFG.fn+"/"+path,{method:"POST",
+      headers:{"Content-Type":"application/json","apikey":CFG.key,"Authorization":"Bearer "+CFG.key},
+      body:JSON.stringify(body)});
+  }
+
+  // ---- Gate-Ansichten ----
+  function showChecking(){
+    gate.hidden=false; lock(true);
+    gb.innerHTML='<h2>Zugang wird geprüft …</h2><div class="spin"></div><p>Einen Moment bitte.</p>';
+  }
+  function showEnter(opts){
+    opts=opts||{};
+    gate.hidden=false; lock(true);
+    gb.innerHTML=''
+      +'<h2>'+esc(opts.title||'MediScan freischalten')+'</h2>'
+      +'<p>'+(opts.msg||'Bitte geben Sie Ihren <b>Bestätigungscode</b> ein. Sie haben ihn nach Ihrer Bestellung per E-Mail erhalten.')+'</p>'
+      +'<input class="gin" id="ms-code" inputmode="text" autocomplete="off" spellcheck="false" placeholder="MS-XXXXX-XXXXX-XXXXX" aria-label="Bestätigungscode">'
+      +'<div class="gerr" id="ms-cerr">'+(opts.err?esc(opts.err):'')+'</div>'
+      +'<button class="gbtn" id="ms-unlock" type="button">Freischalten</button>'
+      +'<div class="gfoot">Noch keinen Code? <a href="kaufen.html">MediScan kaufen – 99&nbsp;€ einmalig</a><br><a href="index.html">Zur Startseite</a></div>';
+    var inp=d.getElementById("ms-code"), btn=d.getElementById("ms-unlock");
+    function go(){ var v=(inp.value||"").trim(); if(!v){ try{inp.focus();}catch(e){} return; } d.getElementById("ms-cerr").textContent=""; validate(v,{first:true,fromForm:true}); }
+    btn.addEventListener("click",go);
+    inp.addEventListener("keydown",function(e){ if(e.key==="Enter"){ e.preventDefault(); go(); } });
+    setTimeout(function(){ try{ inp.focus(); }catch(e){} },40);
+  }
+  function showRevoked(){
+    gate.hidden=false; lock(true);
+    gb.innerHTML=''
+      +'<h2>Zugang gesperrt</h2>'
+      +'<p>Dieser Zugang wurde deaktiviert. Wenn das nicht stimmen kann, wenden Sie sich bitte an <a href="mailto:kontakt@vaydena.de">kontakt@vaydena.de</a>.</p>'
+      +'<button class="gbtn sec" id="ms-again" type="button">Anderen Code eingeben</button>'
+      +'<div class="gfoot"><a href="index.html">Zur Startseite</a></div>';
+    d.getElementById("ms-again").addEventListener("click",function(){ showEnter(); });
+  }
+  function showOfflineFirst(tok){
+    gate.hidden=false; lock(true);
+    gb.innerHTML=''
+      +'<h2>Für die Freischaltung kurz online gehen</h2>'
+      +'<p>Die <b>einmalige</b> Freischaltung braucht kurz eine Internetverbindung. Danach funktioniert MediScan dauerhaft – auch offline.</p>'
+      +'<button class="gbtn" id="ms-retry" type="button">Erneut versuchen</button>'
+      +'<div class="gfoot"><a href="index.html">Zur Startseite</a></div>';
+    d.getElementById("ms-retry").addEventListener("click",function(){ showChecking(); validate(tok,{first:true}); });
+  }
+
+  // ---- Validierung ----
+  function validate(token, opts){
+    opts=opts||{};
+    if(opts.fromForm) showChecking();
+    post("mediscan-check-token",{token:token}).then(function(r){ return r.json(); }).then(function(j){
+      if(j && j.valid){
+        var lic=j.license||{};
+        writeLic({ token:token, order_ref:lic.order_ref||"", name:lic.buyer_name||"", status:"active", verified_at:Date.now() });
+        openApp();
+        return;
+      }
+      var reason=(j&&j.reason)||"unknown";
+      clearLic();
+      if(reason==="revoked"){ showRevoked(); }
+      else if(opts.fromForm||opts.first){
+        showEnter({ err: reason==="not_active"
+          ? "Dieser Code ist noch nicht aktiv. Bitte prüfen Sie Ihre E-Mail bzw. warten Sie die Zahlungsbestätigung ab."
+          : "Dieser Code ist ungültig. Bitte prüfen Sie Ihre Eingabe." });
+      } else { showEnter(); }
+    }).catch(function(){
+      if(opts.first){ showOfflineFirst(token); }   // erste Freischaltung braucht Netz
+      // Revalidierung offline -> nichts tun (App bleibt offen)
+    });
+  }
+  function revalidate(token){
+    post("mediscan-check-token",{token:token}).then(function(r){ return r.json(); }).then(function(j){
+      if(j && j.valid){
+        var lic=j.license||{}; writeLic({ token:token, order_ref:lic.order_ref||"", name:lic.buyer_name||"", status:"active", verified_at:Date.now() });
+        return; // bleibt geöffnet
+      }
+      if(j && j.valid===false){          // Server sagt eindeutig: kein Zugang mehr
+        clearLic();
+        if(j.reason==="revoked") showRevoked(); else showEnter({ err:"Ihr Zugang ist nicht mehr gültig." });
+      }
+      // sonst (z. B. server_error ohne valid-Feld) -> offen lassen
+    }).catch(function(){ /* offline -> offen lassen (fail-open) */ });
+  }
+
+  // ---- Start ----
+  var url, cand="";
+  try{ url=new URL(location.href); var k=url.searchParams.get("k"); if(k){ cand=k.trim(); url.searchParams.delete("k"); history.replaceState(null,"",url.pathname+url.search+url.hash); } }catch(e){}
+
+  var lic=readLic();
+  var haveCache = !!(lic && lic.token && lic.status==="active");
+
+  if(cand && (!haveCache || norm(cand)!==norm(lic.token))){
+    showChecking(); validate(cand,{first:true});              // neuer Code via Link
+  } else if(haveCache){
+    openApp(); revalidate(lic.token);                          // schon frei -> sofort offline-fähig, dann prüfen
+  } else if(cand){
+    showChecking(); validate(cand,{first:true});
+  } else {
+    showEnter();                                               // kein Zugang hinterlegt
+  }
+  try{ window.addEventListener("online",function(){ var l=readLic(); if(l&&l.token) revalidate(l.token); }); }catch(e){}
+})();
+</script>
+
 <header class="topbar">
   <div class="wrap">
     <a class="brand" href="index.html" aria-label="MediScan Startseite">

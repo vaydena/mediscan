@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#00695c">
+<title>MediScan · Betreiber</title>
+<link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<style>
+  :root{
+    --brand:#00695c; --brand-600:#00796b; --brand-050:#e0f2f1;
+    --bg:#f4f6f8; --card:#ffffff; --ink:#16303f; --muted:#5c7180; --line:#e2e8ec;
+    --radius:14px;
+    --shadow-sm:0 1px 2px rgba(16,40,52,.06);
+    --shadow:0 6px 22px rgba(16,40,52,.10);
+    --ok:#137a3e; --ok-bg:#e6f6ec;
+    --paid:#1b5fbf; --paid-bg:#e7f0fd;
+    --open:#b26a00; --open-bg:#fef3e0;
+    --danger:#b3261e; --danger-bg:#fdeaea;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --brand:#2bb7a6; --brand-600:#1f9e8f; --brand-050:#123833;
+      --bg:#0f1720; --card:#16212b; --ink:#e6edf2; --muted:#93a4b3; --line:#223140;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+      --shadow:0 8px 26px rgba(0,0,0,.5);
+      --ok:#58d58a; --ok-bg:#16351f;
+      --paid:#79b0ff; --paid-bg:#172a45;
+      --open:#f0b664; --open-bg:#3a2c14;
+      --danger:#f19a94; --danger-bg:#3a1d1d;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--brand)}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 16px}
+  header.top{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  header.top .wrap{display:flex;align-items:center;gap:12px;height:60px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.2px}
+  .logo .mark{width:30px;height:30px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:16px}
+  .logo small{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+  .spacer{flex:1}
+
+  .btn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);
+    padding:9px 14px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;white-space:nowrap;transition:.12s}
+  .btn:hover{border-color:var(--brand);color:var(--brand)}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn-primary:hover{background:var(--brand-600);border-color:var(--brand-600);color:#fff}
+  .btn-ghost{background:transparent}
+  .btn-ok{background:var(--ok-bg);border-color:transparent;color:var(--ok)}
+  .btn-ok:hover{color:var(--ok);border-color:var(--ok)}
+  .btn-danger{background:var(--danger-bg);border-color:transparent;color:var(--danger)}
+  .btn-danger:hover{color:var(--danger);border-color:var(--danger)}
+  .btn-sm{padding:6px 10px;border-radius:8px;font-size:13px}
+
+  input[type=text],input[type=password],input[type=email],input[type=search],textarea{
+    width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--card);
+    color:var(--ink);font:inherit}
+  input:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 22%,transparent)}
+  label.fld{display:block;margin:0 0 12px}
+  label.fld > span{display:block;font-size:13px;color:var(--muted);margin:0 0 5px;font-weight:600}
+  .check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+  .check input{width:16px;height:16px}
+
+  /* Login */
+  #login{display:none;max-width:400px;margin:9vh auto 0;padding:26px;background:var(--card);
+    border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  #login h1{font-size:20px;margin:0 0 4px}
+  #login p.sub{margin:0 0 18px;color:var(--muted);font-size:14px}
+  #loginErr{display:none;background:var(--danger-bg);color:var(--danger);border-radius:10px;padding:10px 12px;font-size:14px;margin:0 0 12px}
+
+  /* App */
+  #app{display:none;padding:22px 0 60px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 16px}
+  .toolbar .search{position:relative;flex:1;min-width:200px}
+  .toolbar .search input{padding-left:36px}
+  .toolbar .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);opacity:.5}
+
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:0 0 18px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px;box-shadow:var(--shadow-sm)}
+  .stat b{display:block;font-size:24px;line-height:1.1}
+  .stat span{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+  @media(max-width:720px){.cards{grid-template-columns:repeat(2,1fr)}}
+
+  .tablewrap{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  thead th{text-align:left;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);
+    padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--brand) 4%,var(--card));white-space:nowrap}
+  tbody td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:color-mix(in srgb,var(--brand) 3%,transparent)}
+  .pname{font-weight:700}
+  .pmeta{font-size:12.5px;color:var(--muted);margin-top:2px;word-break:break-word}
+  .mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+  .code-chip{display:inline-flex;align-items:center;gap:6px;background:var(--brand-050);color:var(--brand);
+    padding:5px 9px;border-radius:8px;font-weight:700;letter-spacing:.03em;font-size:13px}
+  .code-chip button{border:none;background:transparent;color:inherit;cursor:pointer;padding:0;font-size:13px;opacity:.7}
+  .code-chip button:hover{opacity:1}
+  .act{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+  td.actcell{white-space:nowrap}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700;border:none}
+  .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+  .pill.on{background:var(--ok-bg);color:var(--ok)}
+  .pill.paid{background:var(--paid-bg);color:var(--paid)}
+  .pill.open{background:var(--open-bg);color:var(--open)}
+  .pill.off{background:var(--danger-bg);color:var(--danger)}
+
+  .empty{padding:44px 20px;text-align:center;color:var(--muted)}
+  .loading{padding:44px 20px;text-align:center;color:var(--muted)}
+
+  /* Modal */
+  .modal-back{display:none;position:fixed;inset:0;background:rgba(12,24,32,.55);z-index:40;
+    align-items:center;justify-content:center;padding:16px}
+  .modal{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);width:100%;max-width:560px;
+    max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal.wide{max-width:820px}
+  .modal-h{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
+  .modal-h h2{margin:0;font-size:17px}
+  .modal-h .x{margin-left:auto;border:none;background:transparent;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:2px 6px}
+  .modal-b{padding:18px;overflow:auto}
+  .modal-f{padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+
+  .kv{display:grid;grid-template-columns:150px 1fr;gap:8px 14px;font-size:14px}
+  .kv dt{color:var(--muted);font-weight:600}
+  .kv dd{margin:0;word-break:break-word}
+  .paybox{margin-top:14px;background:color-mix(in srgb,var(--brand) 5%,var(--card));border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .paybox .row{display:flex;gap:8px;align-items:center}
+  .paybox input{font-size:13px}
+
+  /* Toast */
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+    background:#101c24;color:#fff;padding:11px 18px;border-radius:10px;font-size:14px;z-index:60;transition:.2s;box-shadow:var(--shadow);max-width:90vw}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.ok{background:var(--ok);color:#04220f}
+  #toast.err{background:var(--danger);color:#3a0c08}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* Posteingang */
+  .mailrow{display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+  .mailrow:last-child{border-bottom:none}
+  .mailrow:hover{background:color-mix(in srgb,var(--brand) 3%,transparent)}
+  .mailrow .dot{width:9px;height:9px;border-radius:50%;background:var(--brand);flex:0 0 auto}
+  .mailrow .dot.seen{background:transparent;border:1px solid var(--line)}
+  .mailrow .mr-main{flex:1;min-width:0}
+  .mailrow .mr-from{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mailrow .mr-subj{font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mailrow.seen .mr-from,.mailrow.seen .mr-subj{font-weight:500;color:var(--muted)}
+  .mailrow .mr-meta{text-align:right;font-size:12px;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+  .mail-del{border:none;background:transparent;cursor:pointer;font-size:15px;opacity:.55;padding:4px 6px;flex:0 0 auto}
+  .mail-del:hover{opacity:1}
+  .attchip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer;margin:0 8px 8px 0}
+  .attchip:hover{border-color:var(--brand);color:var(--brand)}
+  .mailframe{width:100%;height:52vh;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .mail-meta{font-size:13px;color:var(--muted);margin:2px 0 14px;line-height:1.6}
+  .mail-meta b{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="logo"><span class="mark">℞</span> MediScan <small>Betreiber</small></div>
+    <div class="spacer"></div>
+    <div id="hdrActions" style="display:none">
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">Abmelden</button>
+    </div>
+  </div>
+</header>
+
+<!-- LOGIN -->
+<div id="login">
+  <h1>Betreiber-Login</h1>
+  <p class="sub">Bitte den Betreiber-Schlüssel eingeben, um Lizenzen und den Posteingang zu verwalten.</p>
+  <div id="loginErr"></div>
+  <form id="loginForm" autocomplete="off">
+    <label class="fld">
+      <span>Betreiber-Schlüssel</span>
+      <input type="password" id="keyInput" autocomplete="current-password" placeholder="••••••••••••" required>
+    </label>
+    <label class="check" style="margin:0 0 16px">
+      <input type="checkbox" id="remember"> Auf diesem Gerät merken
+    </label>
+    <button class="btn btn-primary" id="loginBtn" type="submit" style="width:100%;justify-content:center">Anmelden</button>
+  </form>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="wrap">
+
+    <div class="toolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="search" placeholder="Suchen: Name, E-Mail, Bestellnr., Code …">
+      </div>
+      <button class="btn btn-primary" id="newBtn" type="button">＋ Neue Lizenz</button>
+      <button class="btn btn-ghost" id="mailBtn" type="button">✉ Posteingang</button>
+      <button class="btn btn-ghost" id="refreshBtn" type="button">↻ Aktualisieren</button>
+      <button class="btn btn-ghost" id="exportBtn" type="button">⇩ Export</button>
+    </div>
+
+    <!-- LICENSES -->
+    <div id="viewLicenses">
+      <div class="cards" id="stats">
+        <div class="stat"><b id="cAll">–</b><span>Gesamt</span></div>
+        <div class="stat"><b id="cActive" style="color:var(--ok)">–</b><span>Aktiv</span></div>
+        <div class="stat"><b id="cOpen" style="color:var(--open)">–</b><span>Offen / bezahlt</span></div>
+        <div class="stat"><b id="cRevoked" style="color:var(--danger)">–</b><span>Gesperrt</span></div>
+      </div>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th style="width:26%">Käufer</th>
+            <th style="width:16%">Bestellung</th>
+            <th style="width:12%">Status</th>
+            <th style="width:22%">Bestätigungscode</th>
+            <th style="width:24%;text-align:right">Aktionen</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="loading" id="licLoading">Lade Lizenzen …</div>
+        <div class="empty" id="licEmpty" style="display:none">Noch keine Lizenzen. Mit „＋ Neue Lizenz“ die erste anlegen.</div>
+        <div class="empty" id="licNoMatch" style="display:none">Keine Treffer für die Suche.</div>
+      </div>
+    </div>
+
+    <!-- POSTEINGANG -->
+    <div id="viewMail" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px">
+        <button class="btn btn-ghost btn-sm" id="mailBack2" type="button">← Zurück zu Lizenzen</button>
+        <div class="spacer" style="flex:1"></div>
+        <span id="mailBoxInfo" style="font-size:13px;color:var(--muted)"></span>
+        <button class="btn btn-ghost btn-sm" id="mailReload" type="button">↻ Neu laden</button>
+      </div>
+      <div class="tablewrap">
+        <div id="mailList"></div>
+        <div class="loading" id="mailLoading" style="display:none">Lade Posteingang …</div>
+        <div class="empty" id="mailEmpty" style="display:none">Der Posteingang ist leer.</div>
+        <div class="empty" id="mailErr" style="display:none;color:var(--danger)"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- NEW LICENSE MODAL -->
+<div class="modal-back" id="newBack">
+  <div class="modal">
+    <div class="modal-h"><h2>Neue Lizenz anlegen</h2><button class="x" id="newX" type="button">×</button></div>
+    <div class="modal-b">
+      <label class="fld"><span>Name des Käufers *</span><input type="text" id="nName" placeholder="Vor- und Nachname"></label>
+      <label class="fld"><span>E-Mail (für Code-Versand)</span><input type="email" id="nEmail" placeholder="kunde@example.com"></label>
+      <label class="fld"><span>Notiz (intern, optional)</span><input type="text" id="nNotes" placeholder="z. B. Bestellweg, Referenz"></label>
+      <p style="font-size:13px;color:var(--muted);margin:4px 0 0">Die Lizenz wird als <b>offen</b> angelegt (Festpreis 99&nbsp;€). Nach Zahlungseingang „Als bezahlt markieren“, dann „Freischalten“ – dabei wird der Bestätigungscode erzeugt und per E-Mail an den Käufer gesendet.</p>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-ghost" id="newCancel" type="button">Abbrechen</button>
+      <button class="btn btn-primary" id="newSave" type="button">Lizenz anlegen</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAILS MODAL -->
+<div class="modal-back" id="detBack">
+  <div class="modal">
+    <div class="modal-h"><h2 id="detTitle">Lizenz</h2><button class="x" id="detX" type="button">×</button></div>
+    <div class="modal-b" id="detBody"></div>
+    <div class="modal-f">
+      <button class="btn btn-ghost" id="detClose" type="button">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIL MODAL -->
+<div class="modal-back" id="mailBack">
+  <div class="modal wide">
+    <div class="modal-h"><h2 id="mailTitle">E-Mail</h2><button class="x" id="mailClose" type="button">×</button></div>
+    <div class="modal-b">
+      <div class="mail-meta" id="mailMeta"></div>
+      <div id="mailAtt" style="margin:0 0 10px"></div>
+      <div id="mailContent"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-ghost btn-sm" id="mailImgBtn" type="button" style="display:none">Externe Bilder laden</button>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn btn-danger btn-sm" id="mailDelBtn" type="button">Löschen</button>
+      <button class="btn btn-ghost btn-sm" id="mailCloseBtn" type="button">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var CFG = { fn:"https://xeuexovdipdiiuzjpzkj.supabase.co/functions/v1", apikey:"sb_publishable_3dLuQ2PfEsjavJyl0fmkaA_DXB8ZS6f" };
+  var KKEY = "ms_betreiber_key";
+
+  function $(id){ return document.getElementById(id); }
+
+  // ---------- Schlüssel ----------
+  function getKey(){ try { return sessionStorage.getItem(KKEY) || localStorage.getItem(KKEY) || ""; } catch(e){ return ""; } }
+  function setKey(v, persist){
+    try { sessionStorage.setItem(KKEY, v); } catch(e){}
+    try { if(persist){ localStorage.setItem(KKEY, v); } else { localStorage.removeItem(KKEY); } } catch(e){}
+  }
+  function clearKey(){ try{ sessionStorage.removeItem(KKEY); }catch(e){} try{ localStorage.removeItem(KKEY); }catch(e){} }
+
+  // ---------- API ----------
+  // mediscan-admin hat verify_jwt:true -> Authorization Bearer <pub> ist Pflicht.
+  // mediscan-mail hat verify_jwt:false -> zusätzlicher Header schadet nicht.
+  function api(action, extra, fnName){
+    var body = Object.assign({ action: action }, extra || {});
+    return fetch(CFG.fn + "/" + (fnName || "mediscan-admin"), {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "apikey":CFG.apikey,
+        "Authorization":"Bearer " + CFG.apikey,
+        "x-admin-key":getKey()
+      },
+      body: JSON.stringify(body)
+    }).then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(data){
+        if(res.status === 401){ var e = new Error("unauthorized"); e.code = 401; throw e; }
+        if(!res.ok || (data && data.error)){ var e2 = new Error((data && data.error) || ("http_" + res.status)); e2.code = res.status; throw e2; }
+        return data;
+      });
+    });
+  }
+
+  // ---------- Helfer ----------
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function toast(msg, kind){
+    var t = $("toast"); t.textContent = msg; t.className = "show" + (kind ? " " + kind : "");
+    clearTimeout(t._h); t._h = setTimeout(function(){ t.className = ""; }, 2600);
+  }
+  function fmtDate(s){ if(!s) return "—"; var d = new Date(s); if(isNaN(d)) return "—"; return d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}); }
+  function fmtDateTime(s){ if(!s) return "—"; var d = new Date(s); if(isNaN(d)) return "—"; return d.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }
+  function fmtSize(n){ n = +n || 0; if(n < 1024) return n + " B"; if(n < 1048576) return (n/1024).toFixed(1) + " KB"; return (n/1048576).toFixed(1) + " MB"; }
+  function copyText(v, okMsg){
+    function done(){ toast(okMsg || "Kopiert", "ok"); }
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(done).catch(function(){ window.prompt("Kopieren:", v); }); }
+    else { window.prompt("Kopieren:", v); }
+  }
+  function handleErr(e){
+    if(e && e.code === 401){ toast("Schlüssel ungültig – bitte neu anmelden", "err"); clearKey(); showLogin(); return; }
+    toast((e && e.message) ? ("Fehler: " + e.message) : "Unbekannter Fehler", "err");
+  }
+
+  // ---------- View-Umschaltung ----------
+  var VIEW = "licenses";
+  function switchView(v){
+    VIEW = v;
+    $("viewLicenses").style.display = v === "licenses" ? "" : "none";
+    $("viewMail").style.display = v === "mail" ? "" : "none";
+    $("mailBtn").classList.toggle("btn-primary", v === "mail");
+    $("mailBtn").classList.toggle("btn-ghost", v !== "mail");
+    if(v === "mail" && !mailLoaded) loadMails();
+  }
+
+  function showLogin(){
+    $("app").style.display = "none";
+    $("hdrActions").style.display = "none";
+    $("login").style.display = "block";
+    setTimeout(function(){ $("keyInput").focus(); }, 60);
+  }
+  function showApp(){
+    $("login").style.display = "none";
+    $("app").style.display = "block";
+    $("hdrActions").style.display = "block";
+    switchView("licenses");
+  }
+
+  // ---------- Lizenzen ----------
+  var LICENSES = [];
+  var licLoaded = false;
+  var busy = false;
+  function setBusy(b){ busy = b; }
+
+  function statusPill(st){
+    if(st === "active")  return '<span class="pill on">aktiv</span>';
+    if(st === "paid")    return '<span class="pill paid">bezahlt</span>';
+    if(st === "revoked") return '<span class="pill off">gesperrt</span>';
+    return '<span class="pill open">offen</span>';
+  }
+
+  function load(silent){
+    if(!silent){ $("licLoading").style.display = ""; $("licEmpty").style.display = "none"; $("licNoMatch").style.display = "none"; }
+    return api("list").then(function(d){
+      LICENSES = (d && d.licenses) || []; licLoaded = true;
+      renderCounts(d && d.counts);
+      renderLicenses();
+    }).catch(function(e){
+      handleErr(e);
+      if(!(e && e.code === 401)){ $("licLoading").textContent = "Lizenzen konnten nicht geladen werden."; }
+      throw e;
+    });
+  }
+
+  function renderCounts(c){
+    c = c || {};
+    var total = LICENSES.length;
+    var open = (+c.pending||0) + (+c.paid||0);
+    $("cAll").textContent = total;
+    $("cActive").textContent = (+c.active||0);
+    $("cOpen").textContent = open;
+    $("cRevoked").textContent = (+c.revoked||0);
+  }
+
+  function currentFilter(){ return ($("search").value || "").trim().toLowerCase(); }
+  function matches(l, q){
+    if(!q) return true;
+    return [l.buyer_name, l.buyer_email, l.order_ref, l.token, l.notes]
+      .map(function(x){ return String(x||"").toLowerCase(); }).join(" ").indexOf(q) !== -1;
+  }
+
+  function renderLicenses(){
+    var tb = $("rows"); tb.innerHTML = "";
+    $("licLoading").style.display = "none";
+    var q = currentFilter();
+    var list = LICENSES.filter(function(l){ return matches(l, q); });
+    $("licEmpty").style.display = LICENSES.length ? "none" : "";
+    $("licNoMatch").style.display = (LICENSES.length && !list.length) ? "" : "none";
+
+    list.forEach(function(l){
+      var tr = document.createElement("tr");
+      var codeCell = l.token
+        ? '<span class="code-chip mono"><span>' + esc(l.token) + '</span><button type="button" title="Code kopieren" data-copy="' + esc(l.token) + '">⧉</button></span>'
+        : '<span style="color:var(--muted)">— noch keiner —</span>';
+      tr.innerHTML =
+        '<td><div class="pname">' + esc(l.buyer_name || "—") + '</div>' +
+          '<div class="pmeta">' + esc(l.buyer_email || "keine E-Mail") + (l.notes ? ' · ' + esc(l.notes) : '') + '</div></td>' +
+        '<td><div class="mono">' + esc(l.order_ref || "—") + '</div><div class="pmeta">' + fmtDate(l.created_at) + '</div></td>' +
+        '<td>' + statusPill(l.status) + '</td>' +
+        '<td>' + codeCell + '</td>' +
+        '<td class="actcell"><div class="act"></div></td>';
+      var act = tr.querySelector(".act");
+
+      if(l.status === "pending"){
+        act.appendChild(mkBtn("Als bezahlt", "btn-ok btn-sm", function(){ doPaid(l); }));
+        act.appendChild(mkBtn("Freischalten", "btn-primary btn-sm", function(){ doActivate(l); }));
+      } else if(l.status === "paid"){
+        act.appendChild(mkBtn("Freischalten", "btn-primary btn-sm", function(){ doActivate(l); }));
+      } else if(l.status === "active"){
+        act.appendChild(mkBtn("Code senden", "btn-ghost btn-sm", function(){ doResend(l); }));
+        act.appendChild(mkBtn("Sperren", "btn-danger btn-sm", function(){ doRevoke(l); }));
+      } else if(l.status === "revoked"){
+        act.appendChild(mkBtn("Entsperren", "btn-ok btn-sm", function(){ doUnrevoke(l); }));
+      }
+      act.appendChild(mkBtn("Details", "btn-ghost btn-sm", function(){ showDetails(l); }));
+
+      tb.appendChild(tr);
+    });
+
+    // Code-Kopier-Buttons
+    Array.prototype.forEach.call(tb.querySelectorAll("[data-copy]"), function(b){
+      b.addEventListener("click", function(){ copyText(b.getAttribute("data-copy"), "Bestätigungscode kopiert"); });
+    });
+  }
+
+  function mkBtn(label, cls, fn){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "btn " + cls; b.textContent = label; b.onclick = fn;
+    return b;
+  }
+
+  // ---------- Lizenz-Aktionen ----------
+  function doPaid(l){
+    if(busy) return;
+    if(!window.confirm('Lizenz „' + (l.order_ref||"") + '“ als BEZAHLT markieren?\n\nDamit ist der Zahlungseingang bestätigt. Anschließend kann freigeschaltet werden.')) return;
+    setBusy(true); toast("Wird gespeichert …");
+    api("set_paid", { id: l.id }).then(function(){
+      toast("Als bezahlt markiert", "ok"); return load(true);
+    }).catch(handleErr).then(function(){ setBusy(false); });
+  }
+
+  function doActivate(l){
+    if(busy) return;
+    var hasMail = !!l.buyer_email;
+    var msg = 'Lizenz „' + (l.order_ref||"") + '“ jetzt freischalten?\n\n' +
+      'Es wird ein Bestätigungscode erzeugt' + (hasMail ? ' und automatisch an ' + l.buyer_email + ' gesendet.' : '.\n\nAchtung: keine E-Mail hinterlegt – der Code muss dem Käufer manuell mitgeteilt werden (siehe „Details“).');
+    if(!window.confirm(msg)) return;
+    setBusy(true); toast("Wird freigeschaltet …");
+    api("activate", { id: l.id }).then(function(d){
+      var code = d && d.license && d.license.token;
+      if(d && d.emailed){ toast("Freigeschaltet · Code per E-Mail gesendet", "ok"); }
+      else { toast("Freigeschaltet. E-Mail-Versand: " + ((d && d.mail_error) || "nicht möglich") + " – Code manuell weitergeben", "err"); }
+      return load(true).then(function(){ if(code && !(d && d.emailed)){ afterActivateShow(l.id); } });
+    }).catch(handleErr).then(function(){ setBusy(false); });
+  }
+  function afterActivateShow(id){ var l = LICENSES.filter(function(x){ return x.id === id; })[0]; if(l) showDetails(l); }
+
+  function doResend(l){
+    if(busy) return;
+    if(!l.buyer_email){ toast("Keine E-Mail hinterlegt – Code über „Details“ manuell weitergeben", "err"); return; }
+    if(!window.confirm('Bestätigungscode erneut an ' + l.buyer_email + ' senden?')) return;
+    setBusy(true); toast("Wird gesendet …");
+    api("resend_code", { id: l.id }).then(function(d){
+      if(d && d.emailed){ toast("Code erneut gesendet", "ok"); }
+      else { toast("Versand fehlgeschlagen: " + ((d && d.mail_error) || "unbekannt"), "err"); }
+      return load(true);
+    }).catch(handleErr).then(function(){ setBusy(false); });
+  }
+
+  function doRevoke(l){
+    if(busy) return;
+    if(!window.confirm('Zugang für „' + (l.order_ref||"") + '“ SPERREN?\n\nDer Bestätigungscode wird ungültig. Bereits freigeschaltete Geräte verlieren den Zugang, sobald sie das nächste Mal online sind. Kann jederzeit wieder entsperrt werden.')) return;
+    setBusy(true); toast("Wird gesperrt …");
+    api("revoke", { id: l.id }).then(function(){
+      toast("Zugang gesperrt", "ok"); return load(true);
+    }).catch(handleErr).then(function(){ setBusy(false); });
+  }
+
+  function doUnrevoke(l){
+    if(busy) return;
+    if(!window.confirm('Zugang für „' + (l.order_ref||"") + '“ wieder ENTSPERREN?')) return;
+    setBusy(true); toast("Wird entsperrt …");
+    api("unrevoke", { id: l.id }).then(function(){
+      toast("Zugang entsperrt", "ok"); return load(true);
+    }).catch(handleErr).then(function(){ setBusy(false); });
+  }
+
+  // ---------- Details ----------
+  function showDetails(l){
+    api("get", { id: l.id }).then(function(d){
+      var lic = (d && d.license) || l;
+      var payLink = d && d.pay_link ? d.pay_link : "";
+      $("detTitle").textContent = "Lizenz " + (lic.order_ref || "");
+      var body = '<dl class="kv">' +
+        '<dt>Status</dt><dd>' + statusPill(lic.status) + '</dd>' +
+        '<dt>Käufer</dt><dd>' + esc(lic.buyer_name || "—") + '</dd>' +
+        '<dt>E-Mail</dt><dd>' + (lic.buyer_email ? esc(lic.buyer_email) : '<span style="color:var(--muted)">keine hinterlegt</span>') + '</dd>' +
+        '<dt>Bestellnummer</dt><dd class="mono">' + esc(lic.order_ref || "—") + '</dd>' +
+        '<dt>Preis</dt><dd>' + ((+lic.price_cents||9900)/100).toFixed(2).replace(".",",") + ' €</dd>' +
+        '<dt>Bestätigungscode</dt><dd>' + (lic.token ? '<span class="code-chip mono"><span>' + esc(lic.token) + '</span><button type="button" data-dcopy="' + esc(lic.token) + '" title="kopieren">⧉</button></span>' : '<span style="color:var(--muted)">noch keiner (erst nach Freischaltung)</span>') + '</dd>' +
+        '<dt>Notiz</dt><dd>' + esc(lic.notes || "—") + '</dd>' +
+        '<dt>Angelegt</dt><dd>' + fmtDateTime(lic.created_at) + '</dd>' +
+        '<dt>Bezahlt</dt><dd>' + fmtDateTime(lic.paid_at) + '</dd>' +
+        '<dt>Freigeschaltet</dt><dd>' + fmtDateTime(lic.activated_at) + '</dd>' +
+        (lic.revoked_at ? '<dt>Gesperrt</dt><dd>' + fmtDateTime(lic.revoked_at) + '</dd>' : '') +
+        '</dl>';
+      if(payLink && (lic.status === "pending" || lic.status === "paid")){
+        body += '<div class="paybox"><div style="font-size:13px;color:var(--muted);margin:0 0 6px;font-weight:600">Zahlseite für den Käufer (99&nbsp;€, Überweisung + GiroCode)</div>' +
+          '<div class="row"><input type="text" readonly value="' + esc(payLink) + '" id="detPay"><button class="btn btn-ghost btn-sm" type="button" data-paycopy="' + esc(payLink) + '">Kopieren</button></div></div>';
+      }
+      $("detBody").innerHTML = body;
+      Array.prototype.forEach.call($("detBody").querySelectorAll("[data-dcopy]"), function(b){ b.addEventListener("click", function(){ copyText(b.getAttribute("data-dcopy"), "Code kopiert"); }); });
+      Array.prototype.forEach.call($("detBody").querySelectorAll("[data-paycopy]"), function(b){ b.addEventListener("click", function(){ copyText(b.getAttribute("data-paycopy"), "Zahl-Link kopiert"); }); });
+      $("detBack").style.display = "flex";
+    }).catch(handleErr);
+  }
+  function hideDetails(){ $("detBack").style.display = "none"; }
+
+  // ---------- Neue Lizenz ----------
+  function openNew(){ $("nName").value=""; $("nEmail").value=""; $("nNotes").value=""; $("newBack").style.display="flex"; setTimeout(function(){ $("nName").focus(); }, 60); }
+  function hideNew(){ $("newBack").style.display = "none"; }
+  function saveNew(){
+    if(busy) return;
+    var name = $("nName").value.trim();
+    var email = $("nEmail").value.trim();
+    var notes = $("nNotes").value.trim();
+    if(name.length < 2){ toast("Bitte einen Namen eingeben", "err"); $("nName").focus(); return; }
+    if(email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast("E-Mail-Adresse prüfen", "err"); $("nEmail").focus(); return; }
+    setBusy(true); $("newSave").disabled = true; $("newSave").innerHTML = '<span class="spin"></span>Anlegen…';
+    api("create", { buyer_name: name, buyer_email: email || undefined, notes: notes || undefined }).then(function(d){
+      hideNew(); toast("Lizenz " + (d && d.license ? d.license.order_ref : "") + " angelegt", "ok");
+      return load(true).then(function(){
+        var id = d && d.license && d.license.id;
+        var l = LICENSES.filter(function(x){ return x.id === id; })[0];
+        if(l) showDetails(l);
+      });
+    }).catch(handleErr).then(function(){ setBusy(false); $("newSave").disabled = false; $("newSave").textContent = "Lizenz anlegen"; });
+  }
+
+  // ---------- Export ----------
+  function doExport(){
+    toast("Export wird erstellt …");
+    api("export").then(function(d){
+      var blob = new Blob([JSON.stringify(d, null, 2)], { type:"application/json" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "mediscan-lizenzen-" + new Date().toISOString().slice(0,10) + ".json";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+      toast("Export heruntergeladen (" + (d && d.count || 0) + " Lizenzen)", "ok");
+    }).catch(handleErr);
+  }
+
+  // ================= POSTEINGANG =================
+  var MAILS = [], mailLoaded = false, mailBox = "", curMail = null, curMailHtml = "";
+
+  function loadMails(){
+    $("mailErr").style.display = "none"; $("mailEmpty").style.display = "none";
+    $("mailList").innerHTML = ""; $("mailLoading").style.display = "";
+    api("list", {}, "mediscan-mail").then(function(d){
+      MAILS = (d && d.mails) || []; mailLoaded = true; mailBox = (d && d.mailbox) || "";
+      $("mailBoxInfo").textContent = mailBox ? (mailBox + " · " + MAILS.length + " Nachrichten") : (MAILS.length + " Nachrichten");
+      renderMails();
+    }).catch(mailFail).then(function(){ $("mailLoading").style.display = "none"; });
+  }
+
+  function renderMails(){
+    var box = $("mailList"); box.innerHTML = "";
+    $("mailEmpty").style.display = MAILS.length ? "none" : "";
+    MAILS.forEach(function(m){
+      var row = document.createElement("div");
+      row.className = "mailrow" + (m.seen ? " seen" : "");
+      row.innerHTML =
+        '<span class="dot' + (m.seen ? " seen" : "") + '"></span>' +
+        '<div class="mr-main"><div class="mr-from">' + esc(m.from || m.fromAddr || "Unbekannt") + '</div>' +
+        '<div class="mr-subj">' + esc(m.subject || "(kein Betreff)") + '</div></div>' +
+        '<div class="mr-meta">' + fmtDateTime(m.date) + '<br>' + fmtSize(m.size) + '</div>' +
+        '<button class="mail-del" title="Löschen" type="button">🗑</button>';
+      row.querySelector(".mr-main").addEventListener("click", function(){ openMail(m); });
+      row.querySelector(".mr-from").style.cursor = "pointer";
+      row.addEventListener("click", function(ev){ if(!ev.target.closest(".mail-del")) openMail(m); });
+      row.querySelector(".mail-del").addEventListener("click", function(ev){ ev.stopPropagation(); deleteMail(m); });
+      box.appendChild(row);
+    });
+  }
+
+  function mailFail(e){
+    if(e && e.code === 401){ handleErr(e); return; }
+    var map = {
+      mail_not_configured:"Postfach ist nicht konfiguriert (MAIL_USER/MAIL_PASSWORD fehlen).",
+      imap_connect_failed:"Verbindung zum Mailserver fehlgeschlagen.",
+      imap_auth_failed:"Anmeldung am Mailserver fehlgeschlagen.",
+      imap_select_failed:"Postfach konnte nicht geöffnet werden.",
+      imap_timeout:"Zeitüberschreitung beim Mailserver.",
+      imap_closed:"Verbindung zum Mailserver unterbrochen.",
+      mail_too_large:"E-Mail ist zu groß zum Anzeigen.",
+      not_found:"E-Mail nicht gefunden (evtl. schon gelöscht)."
+    };
+    var msg = (e && map[e.message]) || (e && e.message) || "Posteingang konnte nicht geladen werden.";
+    $("mailErr").textContent = msg; $("mailErr").style.display = "";
+    $("mailEmpty").style.display = "none";
+  }
+
+  // ---- sichere Mail-Anzeige (aus aufklaerungsbogen, unverändert) ----
+  function mailFrameDoc(html, allowRemote){
+    var csp = allowRemote
+      ? "default-src 'none'; img-src https: http: data: cid:; style-src 'unsafe-inline'"
+      : "default-src 'none'; img-src data: cid:; style-src 'unsafe-inline'";
+    return '<!doctype html><html><head><meta charset="utf-8">' +
+      '<meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
+      '<base target="_blank"><style>body{margin:12px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:14px;color:#16323a;background:#fff;word-break:break-word}img{max-width:100%;height:auto}a{color:#00695c}</style>' +
+      '</head><body>' + (html || "") + '</body></html>';
+  }
+
+  function hasRemoteImg(html){ return /<img[^>]+src\s*=\s*["']?\s*https?:/i.test(html || ""); }
+
+  function renderMailContent(d){
+    var host = $("mailContent"); host.innerHTML = "";
+    var iframe = document.createElement("iframe");
+    iframe.className = "mailframe";
+    iframe.setAttribute("sandbox", "allow-popups allow-popups-to-escape-sandbox");
+    if(d.html){
+      curMailHtml = d.html;
+      iframe.srcdoc = mailFrameDoc(d.html, false);
+      $("mailImgBtn").style.display = hasRemoteImg(d.html) ? "" : "none";
+    } else {
+      curMailHtml = "";
+      var safe = esc(d.text || "(kein Inhalt)").replace(/\n/g, "<br>");
+      iframe.srcdoc = mailFrameDoc('<pre style="white-space:pre-wrap;font-family:inherit;margin:0">' + safe + '</pre>', false);
+      $("mailImgBtn").style.display = "none";
+    }
+    host.appendChild(iframe);
+  }
+
+  function openMail(m){
+    curMail = m;
+    $("mailTitle").textContent = m.subject || "(kein Betreff)";
+    $("mailMeta").innerHTML = "";
+    $("mailAtt").innerHTML = "";
+    $("mailContent").innerHTML = '<div class="loading">Lade E-Mail …</div>';
+    $("mailImgBtn").style.display = "none";
+    $("mailBack").style.display = "flex";
+    api("get", { uid: m.uid }, "mediscan-mail").then(function(d){
+      var h = (d && d.headers) || {};
+      $("mailMeta").innerHTML =
+        "<b>Von:</b> " + esc(h.from || m.from || "—") + "<br>" +
+        (h.to ? "<b>An:</b> " + esc(h.to) + "<br>" : "") +
+        "<b>Datum:</b> " + fmtDateTime(h.date || m.date) +
+        (h.subject ? "<br><b>Betreff:</b> " + esc(h.subject) : "");
+      var atts = (d && d.attachments) || [];
+      if(atts.length){
+        atts.forEach(function(a, i){
+          var chip = document.createElement("span");
+          chip.className = "attchip";
+          chip.innerHTML = "📎 " + esc(a.filename || ("Anhang " + (i+1))) + ' <span style="color:var(--muted)">' + fmtSize(a.size) + "</span>";
+          chip.addEventListener("click", function(){ dlAttachment(m.uid, i, a.filename); });
+          $("mailAtt").appendChild(chip);
+        });
+      }
+      renderMailContent(d || {});
+      // in der Liste als gelesen markieren
+      m.seen = true; renderMails();
+    }).catch(function(e){
+      $("mailContent").innerHTML = '<div class="empty" style="color:var(--danger)">' + esc((e && e.message) || "Konnte nicht geladen werden") + "</div>";
+      if(e && e.code === 401) handleErr(e);
+    });
+  }
+  function hideMailModal(){ $("mailBack").style.display = "none"; curMail = null; curMailHtml = ""; }
+
+  function dlAttachment(uid, index, name){
+    toast("Anhang wird geladen …");
+    api("attachment", { uid: uid, index: index }, "mediscan-mail").then(function(d){
+      var bin = atob(d.b64 || "");
+      var arr = new Uint8Array(bin.length);
+      for(var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      var blob = new Blob([arr], { type: d.mime || "application/octet-stream" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name || d.filename || "anhang";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+      toast("Anhang heruntergeladen", "ok");
+    }).catch(function(e){ handleErr(e); });
+  }
+
+  function deleteMail(m){
+    if(!m) return;
+    var subj = m.subject || "(kein Betreff)";
+    var von = m.from || m.fromAddr || "?";
+    if(!window.confirm('Diese E-Mail löschen?\n\n„' + subj + '"\nvon ' + von +
+      '\n\nSie wird aus dem Posteingang entfernt. Hat das Postfach einen Papierkorb, landet sie dort und lässt sich im Webmail wiederherstellen.')) return;
+    var delBtn = $("mailDelBtn");
+    var inModal = $("mailBack").style.display === "flex";
+    if(inModal){ delBtn.disabled = true; delBtn.innerHTML = '<span class="spin"></span>Löschen…'; }
+    toast("E-Mail wird gelöscht …");
+    api("delete", { uid: m.uid }, "mediscan-mail").then(function(d){
+      MAILS = MAILS.filter(function(x){ return x.uid !== m.uid; });
+      renderMails();
+      $("mailBoxInfo").textContent = (mailBox ? mailBox + " · " : "") + MAILS.length + " Nachrichten";
+      if($("mailBack").style.display === "flex"){ hideMailModal(); }
+      toast((d && d.movedToTrash) ? "In den Papierkorb verschoben" : "E-Mail gelöscht", "ok");
+    }).catch(mailFail).then(function(){
+      delBtn.disabled = false; delBtn.innerHTML = "Löschen";
+    });
+  }
+
+  // ================= Wiring =================
+  $("loginForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var v = $("keyInput").value.trim();
+    if(!v){ return; }
+    $("loginErr").style.display = "none";
+    $("loginBtn").disabled = true; $("loginBtn").innerHTML = '<span class="spin"></span>Prüfe…';
+    setKey(v, $("remember").checked);
+    load().then(function(){ showApp(); }).catch(function(e){
+      if(e && e.code === 401){ $("loginErr").textContent = "Schlüssel ungültig."; $("loginErr").style.display = ""; clearKey(); }
+      else { $("loginErr").textContent = "Verbindung fehlgeschlagen. Bitte erneut versuchen."; $("loginErr").style.display = ""; }
+    }).then(function(){ $("loginBtn").disabled = false; $("loginBtn").textContent = "Anmelden"; $("keyInput").value = ""; });
+  });
+
+  $("logoutBtn").addEventListener("click", function(){ clearKey(); LICENSES = []; licLoaded = false; mailLoaded = false; showLogin(); });
+  $("refreshBtn").addEventListener("click", function(){ if(VIEW === "mail"){ loadMails(); } else { load(); } });
+  $("search").addEventListener("input", function(){ if(licLoaded) renderLicenses(); });
+  $("newBtn").addEventListener("click", openNew);
+  $("newX").addEventListener("click", hideNew);
+  $("newCancel").addEventListener("click", hideNew);
+  $("newSave").addEventListener("click", saveNew);
+  $("newBack").addEventListener("click", function(ev){ if(ev.target === $("newBack")) hideNew(); });
+  $("detX").addEventListener("click", hideDetails);
+  $("detClose").addEventListener("click", hideDetails);
+  $("detBack").addEventListener("click", function(ev){ if(ev.target === $("detBack")) hideDetails(); });
+  $("exportBtn").addEventListener("click", doExport);
+  $("mailBtn").addEventListener("click", function(){ switchView(VIEW === "mail" ? "licenses" : "mail"); });
+  $("mailBack2").addEventListener("click", function(){ switchView("licenses"); });
+  $("mailReload").addEventListener("click", loadMails);
+  $("mailClose").addEventListener("click", hideMailModal);
+  $("mailCloseBtn").addEventListener("click", hideMailModal);
+  $("mailDelBtn").addEventListener("click", function(){ if(curMail) deleteMail(curMail); });
+  $("mailImgBtn").addEventListener("click", function(){
+    var fr = $("mailContent").querySelector("iframe");
+    if(fr && curMailHtml){ fr.srcdoc = mailFrameDoc(curMailHtml, true); $("mailImgBtn").style.display = "none"; }
+  });
+  $("mailBack").addEventListener("click", function(ev){ if(ev.target === $("mailBack")) hideMailModal(); });
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "Escape"){
+      if($("mailBack").style.display === "flex") hideMailModal();
+      else if($("detBack").style.display === "flex") hideDetails();
+      else if($("newBack").style.display === "flex") hideNew();
+    }
+  });
+
+  // ---------- Start ----------
+  if(getKey()){ load().then(showApp).catch(function(e){ if(e && e.code === 401){ clearKey(); } showLogin(); }); }
+  else { showLogin(); }
+})();
+</script>
+</body>
+</html>

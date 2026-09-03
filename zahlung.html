@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#00695c">
+<meta name="robots" content="noindex, nofollow">
+<title>Zahlung – MediScan</title>
+<style>
+  :root{
+    --bg:#eef4f3; --card:#ffffff; --ink:#0f172a; --muted:#5c7180; --faint:#94a3b8;
+    --line:#e2e8f0; --brand:#00695c; --brand-ink:#00514a; --brand-050:#e0f2f1;
+    --ok:#0f9d58; --ok-bg:#e9f7ef; --danger:#b42318; --danger-bg:#fef2f2;
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:
+      radial-gradient(1200px 500px at 50% -10%, rgba(0,105,92,.07), transparent),
+      linear-gradient(180deg,#f1f8f7,var(--bg));
+    background-color:var(--bg);
+    min-height:100vh; padding:24px 16px 48px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px; margin:0 auto}
+  .top{display:flex; align-items:center; gap:10px; color:var(--brand-ink); font-weight:700; letter-spacing:.2px; padding:4px 2px 16px}
+  .top svg{width:24px;height:24px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); overflow:hidden}
+  .card-h{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid var(--line)}
+  .card-h .lbl{font-size:12px; font-weight:700; letter-spacing:.12em; color:var(--faint); text-transform:uppercase}
+  .card-h .pm{font-weight:700; color:var(--brand-ink); font-size:14px}
+  .body{padding:20px}
+  .muted{color:var(--muted)} .faint{color:var(--faint)}
+  .inv-no{font-size:13px; color:var(--muted); font-weight:600}
+  .amount{font-size:34px; font-weight:800; letter-spacing:-.5px; margin:2px 0}
+  .meta{display:flex; flex-wrap:wrap; gap:6px 22px; font-size:13px; color:var(--muted); margin-bottom:4px}
+  .meta b{color:var(--ink); font-weight:600}
+  .split{display:flex; gap:20px; align-items:flex-start; margin-top:16px}
+  .split .left{flex:1 1 auto; min-width:0}
+  .rows{border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  .row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .row .k{font-size:11px; color:var(--faint); text-transform:uppercase; letter-spacing:.06em}
+  .row .v{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:14px; color:var(--ink); word-break:break-word}
+  .cp{flex:0 0 auto; border:1px solid var(--line); background:#fff; color:var(--muted); border-radius:8px; padding:6px; cursor:pointer; line-height:0}
+  .cp:hover{background:#f8fafc; color:var(--ink)}
+  .cp svg{width:15px;height:15px}
+  .qr{flex:0 0 auto; text-align:center}
+  .qr .box{background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px}
+  .qr svg{width:150px;height:150px;display:block}
+  .qr .cap{display:block; font-size:11px; color:var(--muted); margin-top:6px}
+  .note{margin-top:16px; font-size:13px; color:var(--muted); background:#f8fafc; border:1px solid var(--line); border-radius:10px; padding:11px 13px}
+  .banner{border-radius:12px; padding:14px 16px; margin-bottom:16px; font-size:14px; font-weight:600}
+  .banner.ok{background:var(--ok-bg); color:#0a7a44; border:1px solid #bfe6cf}
+  .center{text-align:center; padding:40px 20px}
+  .center h1{font-size:20px; margin:0 0 6px} .center p{color:var(--muted); margin:0}
+  .spin{width:34px;height:34px;border:3px solid var(--brand-050);border-top-color:var(--brand);border-radius:50%;
+        animation:s .8s linear infinite; margin:0 auto 14px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .paid-ico{width:56px;height:56px;margin:0 auto 12px;color:var(--ok)}
+  .foot{text-align:center; font-size:12px; color:var(--faint); margin-top:18px}
+  .hide{display:none !important}
+  .copied{font-size:12px; color:var(--brand-ink); padding:2px 12px 10px}
+  @media (max-width:560px){ .split{flex-direction:column} .qr{align-self:center} .amount{font-size:30px} }
+
+  .pdf-actions{margin-top:18px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+  .btn-pdf{appearance:none;border:1px solid var(--brand);background:var(--brand);color:#fff;font:inherit;font-weight:700;
+    font-size:14px;padding:11px 18px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+  .btn-pdf:hover{background:var(--brand-ink)}
+  .btn-pdf svg{width:16px;height:16px}
+  .pdf-hint{font-size:12px;color:var(--faint)}
+  #invoiceDoc{display:none}
+  @media print{
+    html,body{background:#fff !important}
+    body>.wrap{display:none !important}
+    #invoiceDoc{display:block}
+    @page{size:A4;margin:16mm}
+  }
+  .idoc{max-width:180mm;margin:0 auto;color:#0f172a;font-size:12.5px;line-height:1.5}
+  .idoc .ihead{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:2px solid var(--brand);padding-bottom:14px}
+  .idoc .issuer{font-size:12px;color:#334155}
+  .idoc .issuer .iname{font-weight:800;color:#0f172a;font-size:14px;margin-bottom:2px}
+  .idoc .doctitle{font-size:26px;font-weight:800;letter-spacing:.02em;color:var(--brand-ink)}
+  .idoc .addr{display:flex;justify-content:space-between;gap:24px;margin:26px 0 22px}
+  .idoc .rec .lbl,.idoc .small{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:4px}
+  .idoc .rec .rname{font-weight:700}
+  .idoc .imeta{min-width:66mm}
+  .idoc .imeta .mrow{display:flex;justify-content:space-between;gap:16px;padding:3px 0;border-bottom:1px solid #eef2f7}
+  .idoc .imeta .mrow span{color:#64748b}
+  .idoc table.items{width:100%;border-collapse:collapse;margin:8px 0 6px}
+  .idoc table.items th{background:#eef6f5;text-align:left;font-size:11px;color:#334155;padding:8px 10px;border-bottom:1px solid #cfe3df}
+  .idoc table.items th.r,.idoc table.items td.r{text-align:right}
+  .idoc table.items td{padding:9px 10px;border-bottom:1px solid #eef2f7;vertical-align:top}
+  .idoc table.items tfoot td{font-weight:800;border-bottom:none;padding-top:12px;font-size:14px}
+  .idoc .tax{margin:14px 0 22px;color:#334155}
+  .idoc .pay{border:1px solid #cfe3df;border-radius:8px;padding:12px 14px;background:#f8fafc}
+  .idoc .pay .prow{margin:2px 0}
+  .idoc .pay .paid{margin-top:8px;color:#0a7a44;font-weight:700}
+  .idoc .ifoot{margin-top:26px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10.5px;color:#94a3b8;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="37" height="37" rx="9" fill="#004d40"/>
+      <rect x="8" y="16.5" width="24" height="7.6" rx="3.8" fill="#fff"/>
+      <rect x="20" y="16.5" width="12" height="7.6" rx="3.8" fill="#00acc1"/>
+      <rect x="5.5" y="19.1" width="29" height="2.2" rx="1.1" fill="#00acc1"/>
+    </svg>
+    <span>MediScan · Zahlung</span>
+  </div>
+
+  <div id="loading" class="card"><div class="center"><div class="spin"></div><p class="muted">Rechnung wird geladen…</p></div></div>
+
+  <div id="gate" class="card hide"><div class="center">
+    <h1 id="gate-title">Rechnung nicht gefunden</h1>
+    <p id="gate-msg">Bitte öffnen Sie den Link aus Ihrer Bestell-E-Mail vollständig.</p>
+  </div></div>
+
+  <div id="main" class="card hide">
+    <div class="card-h">
+      <span class="lbl">Zahlung</span>
+      <span class="pm">Banküberweisung</span>
+    </div>
+    <div class="body">
+      <div id="statusBanner"></div>
+
+      <div id="paidBox" class="hide center">
+        <svg class="paid-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m22 4-10 10.01-3-3"/></svg>
+        <h1 style="font-size:20px;margin:0 0 4px">Zahlung erhalten</h1>
+        <p class="muted" id="paidText">Vielen Dank. Ihr Bestätigungscode wird an Ihre E-Mail-Adresse versandt.</p>
+        <div class="pdf-actions" style="align-items:center">
+          <button class="btn-pdf" id="pdfBtnPaid" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            Rechnung als PDF speichern
+          </button>
+          <span class="pdf-hint">Im Druckdialog „Als PDF speichern“ wählen.</span>
+        </div>
+      </div>
+
+      <div id="openBox" class="hide">
+        <div class="inv-no">Bestellung: <span id="invNo">—</span></div>
+        <div class="amount" id="amount">—</div>
+        <div class="meta">
+          <span id="buyerWrap" class="hide">Käufer: <b id="buyer">—</b></span>
+          <span>Leistung: <b id="item">MediScan – einmaliger App-Zugang</b></span>
+        </div>
+
+        <section id="panel-bank">
+          <div class="split">
+            <div class="left">
+              <div class="rows" id="bankRows"></div>
+              <div class="copied hide" id="copied"></div>
+            </div>
+            <figure class="qr" id="qrFig" style="margin:0">
+              <div class="box"><div id="qrSlot"></div></div>
+              <span class="cap">Mit Banking-App scannen</span>
+            </figure>
+          </div>
+          <div class="note">Bitte geben Sie den <b>Verwendungszweck</b> vollständig an – so lässt sich Ihre Zahlung eindeutig zuordnen. Nach Zahlungseingang senden wir Ihren <b>Bestätigungscode</b> per E-Mail (i.&nbsp;d.&nbsp;R. innerhalb von 1–2&nbsp;Werktagen).</div>
+          <div class="pdf-actions">
+            <button class="btn-pdf" id="pdfBtnOpen" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+              Rechnung als PDF speichern
+            </button>
+            <span class="pdf-hint">Im Druckdialog „Als PDF speichern“ wählen – ideal für Ihre Unterlagen.</span>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">Sichere Zahlung · Bei Fragen: kontakt@vaydena.de</div>
+</div>
+
+<div id="invoiceDoc" aria-hidden="true">
+  <div class="idoc">
+    <div class="ihead">
+      <div class="issuer">
+        <div class="iname" id="idoc_iss_name">Vaydena - Softwarelösungen</div>
+        <div id="idoc_iss_owner">Karl-Heinz Bicker</div>
+        <div id="idoc_iss_addr">Biberstraße 27, 85354 Freising</div>
+        <div id="idoc_iss_contact">kontakt@vaydena.de</div>
+      </div>
+      <div class="doctitle">RECHNUNG</div>
+    </div>
+    <div class="addr">
+      <div class="rec">
+        <div class="lbl">Rechnungsempfänger</div>
+        <div class="rname" id="idoc_rec_name">—</div>
+        <div id="idoc_rec_street"></div>
+        <div id="idoc_rec_city"></div>
+      </div>
+      <div class="imeta">
+        <div class="mrow"><span>Rechnungsnummer</span><b id="idoc_no">—</b></div>
+        <div class="mrow"><span>Rechnungsdatum</span><b id="idoc_date">—</b></div>
+      </div>
+    </div>
+    <table class="items">
+      <thead><tr><th>Pos.</th><th>Beschreibung</th><th class="r">Menge</th><th class="r">Einzelpreis</th><th class="r">Betrag</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td id="idoc_item">MediScan – einmaliger App-Zugang</td>
+          <td class="r" id="idoc_qty">1</td>
+          <td class="r" id="idoc_unit">—</td>
+          <td class="r" id="idoc_line">—</td>
+        </tr>
+      </tbody>
+      <tfoot><tr><td colspan="4" class="r">Gesamtbetrag</td><td class="r" id="idoc_total">—</td></tr></tfoot>
+    </table>
+    <p class="tax" id="idoc_tax"></p>
+    <div class="pay">
+      <div class="small">Zahlbar ohne Abzug per Überweisung auf folgendes Konto:</div>
+      <div class="prow">Empfänger: <b id="idoc_bank_holder"></b></div>
+      <div class="prow">IBAN: <b id="idoc_bank_iban"></b></div>
+      <div class="prow">BIC: <b id="idoc_bank_bic"></b></div>
+      <div class="prow">Verwendungszweck: <b id="idoc_ref"></b></div>
+      <div class="paid" id="idoc_paid" style="display:none"></div>
+    </div>
+    <div class="ifoot" id="idoc_foot"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var CFG = { fn:"https://xeuexovdipdiiuzjpzkj.supabase.co/functions/v1", key:"sb_publishable_3dLuQ2PfEsjavJyl0fmkaA_DXB8ZS6f" };
+  var byId = function(id){ return document.getElementById(id); };
+  function show(el){ el.classList.remove("hide"); }
+  function hide(el){ el.classList.add("hide"); }
+  function euro(n){ return (Number(n)||0).toFixed(2).replace(".",",") + " €"; }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+  function dmy(s){ if(!s) return ""; var p=String(s).slice(0,10).split("-"); return p.length===3 ? p[2]+"."+p[1]+"."+p[0] : String(s); }
+
+  function post(path, body){
+    return fetch(CFG.fn+"/"+path, { method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":CFG.key, "Authorization":"Bearer "+CFG.key },
+      body: JSON.stringify(body) });
+  }
+
+  var u = new URL(window.location.href);
+  var rtoken = (u.searchParams.get("r")||"").trim();
+
+  function gate(title,msg){
+    hide(byId("loading")); hide(byId("main"));
+    byId("gate-title").textContent = title; byId("gate-msg").textContent = msg; show(byId("gate"));
+  }
+
+  var COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+
+  function renderBankRows(bank, reference){
+    var rows = [
+      ["Empfänger", bank.holder],
+      ["IBAN", bank.iban],
+      ["BIC", bank.bic],
+      ["Betrag", byId("amount").textContent],
+      ["Verwendungszweck", reference]
+    ];
+    var html = "";
+    rows.forEach(function(r){
+      html += '<div class="row"><div><div class="k">'+esc(r[0])+'</div><div class="v">'+esc(r[1])+'</div></div>'
+           +  '<button class="cp" title="Kopieren" data-copy="'+esc(r[1])+'" data-label="'+esc(r[0])+'">'+COPY_SVG+'</button></div>';
+    });
+    byId("bankRows").innerHTML = html;
+    Array.prototype.forEach.call(document.querySelectorAll(".cp"), function(btn){
+      btn.addEventListener("click", function(){
+        var val = btn.getAttribute("data-copy");
+        try{ navigator.clipboard.writeText(val); }catch(e){}
+        var c = byId("copied"); c.textContent = btn.getAttribute("data-label")+" kopiert."; show(c);
+        clearTimeout(window.__cpt); window.__cpt = setTimeout(function(){ hide(c); }, 1600);
+      });
+    });
+  }
+
+  function renderGiro(giro){
+    if(!giro){ hide(byId("qrFig")); return; }
+    byId("qrSlot").innerHTML =
+      '<svg viewBox="0 0 '+giro.size+' '+giro.size+'" shape-rendering="crispEdges" role="img" aria-label="QR-Code mit den Überweisungsdaten">'
+      + '<path d="'+giro.path+'" fill="#0f172a"/></svg>';
+  }
+
+  function renderOpen(inv){
+    byId("invNo").textContent = inv.number;
+    byId("amount").textContent = euro(inv.amount);
+    if(inv.buyer_name){ byId("buyer").textContent = inv.buyer_name; show(byId("buyerWrap")); }
+    if(inv.item){ byId("item").textContent = inv.item; }
+    renderBankRows(inv.bank, inv.reference);
+    renderGiro(inv.giro);
+    fillInvoiceDoc(inv);
+    show(byId("openBox"));
+  }
+
+  function renderPaid(inv){
+    var t = "Vielen Dank. Ihr Bestätigungscode wird an Ihre E-Mail-Adresse versandt.";
+    if(inv.paid_at){ t = "Zahlung erhalten am "+(inv.paid_at_dmy || dmy(inv.paid_at))+". Ihr Bestätigungscode wird per E-Mail versandt."; }
+    byId("paidText").textContent = t;
+    fillInvoiceDoc(inv);
+    show(byId("paidBox"));
+  }
+
+  function setTxt(id, v){ var e = byId(id); if(e) e.textContent = (v == null ? "" : String(v)); }
+  function fillInvoiceDoc(inv){
+    var iss = inv.issuer || {};
+    var issAddr = [iss.street, ((iss.zip||"")+" "+(iss.city||"")).trim()].filter(function(x){ return x && String(x).trim(); }).join(", ");
+    setTxt("idoc_iss_name", iss.name || "Vaydena - Softwarelösungen");
+    setTxt("idoc_iss_owner", iss.owner || "");
+    setTxt("idoc_iss_addr", issAddr);
+    setTxt("idoc_iss_contact", [iss.email, iss.tel].filter(Boolean).join(" · "));
+    var b = inv.billing || {};
+    setTxt("idoc_rec_name", b.recipient || inv.buyer_name || "");
+    setTxt("idoc_rec_street", b.street || "");
+    setTxt("idoc_rec_city", ((b.zip||"")+" "+(b.city||"")).trim());
+    setTxt("idoc_no", inv.number);
+    setTxt("idoc_date", inv.issued_dmy || "");
+    setTxt("idoc_item", inv.item || "MediScan – einmaliger App-Zugang");
+    setTxt("idoc_qty", inv.unit_count != null ? inv.unit_count : 1);
+    setTxt("idoc_unit", euro(inv.unit_price != null ? inv.unit_price : inv.amount));
+    setTxt("idoc_line", euro(inv.amount));
+    setTxt("idoc_total", euro(inv.amount));
+    setTxt("idoc_tax", inv.tax_note || "");
+    var bank = inv.bank || {};
+    setTxt("idoc_bank_holder", bank.holder || "");
+    setTxt("idoc_bank_iban", bank.iban || "");
+    setTxt("idoc_bank_bic", bank.bic || "");
+    setTxt("idoc_ref", inv.reference || inv.number);
+    var paid = byId("idoc_paid");
+    if(inv.status === "paid"){ paid.style.display = ""; paid.textContent = "Bezahlt" + (inv.paid_at_dmy ? (" am " + inv.paid_at_dmy) : "") + " – vielen Dank."; }
+    else { paid.style.display = "none"; }
+    setTxt("idoc_foot", [iss.name || "Vaydena - Softwarelösungen", iss.owner, issAddr, iss.email, "Kleinunternehmer gemäß § 19 UStG"].filter(function(x){ return x && String(x).trim(); }).join(" · "));
+  }
+
+  function load(){
+    if(!rtoken){ gate("Kein Zahlungslink","Bitte öffnen Sie den vollständigen Link aus Ihrer Bestell-E-Mail."); return; }
+    post("mediscan-invoice", { access_token: rtoken })
+      .then(function(r){ return r.json(); })
+      .then(function(inv){
+        if(!inv || !inv.found){ gate("Rechnung nicht gefunden","Der Link ist ungültig oder die Bestellung wurde storniert."); return; }
+        hide(byId("loading")); show(byId("main"));
+        if(inv.status === "paid"){ renderPaid(inv); return; }
+        renderOpen(inv);
+      })
+      .catch(function(){ gate("Verbindungsproblem","Die Rechnung konnte nicht geladen werden. Bitte prüfen Sie Ihre Internetverbindung und laden Sie die Seite neu."); });
+  }
+
+  function wirePdf(id){ var b = byId(id); if(b) b.addEventListener("click", function(){ window.print(); }); }
+  wirePdf("pdfBtnOpen"); wirePdf("pdfBtnPaid");
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", load);
+  else load();
+})();
+</script>
+</body>
+</html>

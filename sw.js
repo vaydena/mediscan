@@ -1,7 +1,7 @@
 /* MediScan – Service Worker (Offline-Shell + Referenzdatenbank).
  * Bei App-Änderungen VERSION erhöhen → alter Cache wird verworfen.
  */
-var VERSION = "ms-v1-2026-09-03-6";
+var VERSION = "ms-v1-2026-09-03-7";
 var CACHE = "mediscan-" + VERSION;
 
 /* Alles, was die App offline braucht (inkl. der 1,4-MB-Referenz-DB und jsPDF). */
