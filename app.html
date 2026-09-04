@@ -223,7 +223,7 @@ body.ms-locked{overflow:hidden}
            Telefons (die ihre Berechtigung bereits hat) und liest den Code aus
            dem Standbild – umgeht Androids Sperre des Live-Berechtigungsdialogs
            bei aktiver Bildschirm-Einblendung anderer Apps. -->
-      <button type="button" class="btn block cyan" id="scanPhotoBtn">📷 Barcode / PZN fotografieren</button>
+      <label class="btn block cyan" id="scanPhotoBtn" for="barfile" role="button" tabindex="0">📷 Barcode / PZN fotografieren</label>
       <input type="file" id="barfile" accept="image/*" capture="environment" hidden>
       <p class="small muted" style="margin:8px 2px 0">Fotografieren Sie den Strichcode (PZN) oder den quadratischen Data-Matrix-Code auf der Packung – der Code wird direkt auf dem Gerät gelesen. Funktioniert auch dann, wenn der Live-Scanner blockiert ist.</p>
 
@@ -301,6 +301,20 @@ body.ms-locked{overflow:hidden}
 (function () {
   if (!("serviceWorker" in navigator)) return;
   if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
+  // Selbstheilung nach einem Update: wenn ein NEUER Service-Worker die Kontrolle
+  // übernimmt (neue App-Version), die Seite EINMAL neu laden. Sonst kann eine
+  // frisch (netzwerk-first) geladene app.html mit einem noch aus dem alten Cache
+  // (cache-first) stammenden ms-app.js laufen -> neuer Button, alte Logik ->
+  // Klick tut scheinbar nichts. Nur bewaffnen, wenn schon ein SW aktiv war
+  // (kein Reload beim allerersten Besuch), und garantiert nur einmal.
+  if (navigator.serviceWorker.controller) {
+    var didReload = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (didReload) return;
+      didReload = true;
+      location.reload();
+    });
+  }
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("sw.js").catch(function () {});
   });

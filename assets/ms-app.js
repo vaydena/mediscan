@@ -870,14 +870,23 @@
       var f = e.target.files && e.target.files[0]; if (f) runOCR(f);
     });
 
-    // Barcode-Foto über die System-Kamera (umgeht die Live-Berechtigungssperre)
-    var photoBtn = el("scanPhotoBtn"), barfile = el("barfile");
-    if (photoBtn && barfile) {
-      photoBtn.addEventListener("click", function () { try { barfile.click(); } catch (x) {} });
+    // Barcode-Foto über die System-Kamera (umgeht die Live-Berechtigungssperre).
+    // Das ÖFFNEN der Kamera macht das <label for="barfile"> nativ – ganz ohne JS
+    // (robust auch bei noch nicht aktualisiertem Script). Deshalb hier KEIN
+    // photoBtn.click()-Handler mehr (der würde die Kamera doppelt öffnen); wir
+    // hängen nur das Auslesen des aufgenommenen Fotos ein.
+    var barfile = el("barfile");
+    if (barfile) {
       barfile.addEventListener("change", function (e) {
         var f = e.target.files && e.target.files[0];
         try { e.target.value = ""; } catch (x) {} // erneutes Fotografieren desselben Motivs erlauben
         if (f) decodeImageFile(f);
+      });
+      // Tastatur-Bedienung des Label-Buttons (Tap öffnet das Label ohnehin nativ;
+      // ein zusätzlicher Klick-Handler würde bei Tap doppelt auslösen).
+      var photoBtn = el("scanPhotoBtn");
+      if (photoBtn) photoBtn.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); try { barfile.click(); } catch (x) {} }
       });
     }
 

@@ -485,6 +485,17 @@ footer.site .fbot{border-top:1px solid rgba(255,255,255,.1);padding-top:22px;col
 (function () {
   if (!("serviceWorker" in navigator)) return;
   if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
+  // Selbstheilung nach einem Update: neuer Service-Worker übernimmt -> Seite
+  // EINMAL neu laden, damit HTML und Skript/Cache zusammenpassen. Nur bewaffnen,
+  // wenn schon ein SW aktiv war (kein Reload beim allerersten Besuch).
+  if (navigator.serviceWorker.controller) {
+    var didReload = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (didReload) return;
+      didReload = true;
+      location.reload();
+    });
+  }
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("sw.js").catch(function () {});
   });
