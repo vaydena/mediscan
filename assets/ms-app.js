@@ -417,9 +417,10 @@
     handlePZN("PZN " + r.pzn);
   }
 
-  // ---- Foto-Barcode über die System-Kamera ----------------------------------
-  // Nimmt EIN Standbild über die native Kamera-App auf (Datei-Input mit
-  // capture="environment") und liest Barcode/PZN daraus. Braucht KEIN
+  // ---- Foto-Barcode aus Kamera ODER Galerie ---------------------------------
+  // Nimmt EIN Standbild entgegen – frisch über die native Kamera-App (Input mit
+  // capture="environment") oder ein bereits vorhandenes Bild aus der Galerie
+  // (Input ohne capture) – und liest Barcode/PZN daraus. Braucht KEIN
   // getUserMedia und keinen Web-Berechtigungsdialog – deshalb funktioniert es
   // auch dann, wenn Android den Live-Kamerazugriff wegen einer Bildschirm-
   // Einblendung anderer Apps blockiert ("Diese Website darf nicht nach deiner
@@ -869,21 +870,27 @@
       var b = e.target.closest("button.toggle[data-key]"); if (b) toggleProfile(b.getAttribute("data-key"));
     });
 
-    // Barcode-Foto über die System-Kamera (umgeht die Live-Berechtigungssperre).
-    // Ein <label for=> öffnet einen mit `hidden` (display:none) versteckten
-    // Datei-Input auf manchen Android-Browsern (Samsung Internet) NICHT. Deshalb
-    // öffnen wir die Kamera per JS mit barfile.click() aus dem echten <button>-
-    // Klick heraus – das funktioniert auch bei display:none, weil es aus einer
-    // Nutzergeste kommt. Ein <button> feuert click auch per Enter/Leertaste (A11y).
-    var photoBtn = el("scanPhotoBtn"), barfile = el("barfile");
-    if (photoBtn && barfile) {
-      photoBtn.addEventListener("click", function () { try { barfile.click(); } catch (x) {} });
-      barfile.addEventListener("change", function (e) {
+    // Zwei Wege in denselben Decoder (umgehen die Live-Berechtigungssperre):
+    //  • „Foto aufnehmen"  → Input #barfileCam mit capture="environment" (Kamera)
+    //  • „Aus Galerie …"   → Input #barfileGal ohne capture (vorhandenes Bild)
+    // Beide werden per .click() aus einer echten Nutzergeste geöffnet – das
+    // funktioniert auch bei display:none und auf Samsung Internet (ein <label for=>
+    // auf einen `hidden`-Input tut das dort nicht). Ein <button> feuert click auch
+    // per Enter/Leertaste (A11y). Ein einzelner Input kann beides NICHT zuverlässig:
+    // moderne Android-Versionen zwingen accept="image/*" ohne capture in den Foto-
+    // Picker (nur Galerie) – deshalb zwei getrennte Inputs.
+    function wirePhotoInput(btnId, inputId) {
+      var btn = el(btnId), inp = el(inputId);
+      if (!btn || !inp) return;
+      btn.addEventListener("click", function () { try { inp.click(); } catch (x) {} });
+      inp.addEventListener("change", function (e) {
         var f = e.target.files && e.target.files[0];
-        try { e.target.value = ""; } catch (x) {} // erneutes Fotografieren desselben Motivs erlauben
+        try { e.target.value = ""; } catch (x) {} // dasselbe Motiv erneut wählen erlauben
         if (f) decodeImageFile(f);
       });
     }
+    wirePhotoInput("scanCamBtn", "barfileCam");   // Kamera
+    wirePhotoInput("scanGalBtn", "barfileGal");   // Galerie
 
     // PZN: manuelle Eingabe + Prüfen
     var pzn = el("pzn");

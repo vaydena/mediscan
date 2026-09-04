@@ -219,18 +219,26 @@ body.ms-locked{overflow:hidden}
     </div>
 
     <div id="pane-scan" hidden>
-      <!-- EIN Scan liest alles: Der Button öffnet per barfile.click() den System-
-           Dialog. OHNE capture-Attribut bietet Android/iOS dort BEIDES an – ein
-           neues Foto mit der Kamera aufnehmen ODER ein bereits vorhandenes Bild aus
-           der Galerie wählen. Beide Wege durchlaufen denselben Decoder: 1D-PZN-
-           Strichcode, 2D-Data-Matrix und – wenn kein Code lesbar ist – der auf-
-           gedruckte Präparatename per Texterkennung. barfile.click() aus einem
-           echten Klick öffnet den Dialog zuverlässig auch auf Samsung Internet
-           (ein <label for=> öffnet einen per `hidden` versteckten Input dort nicht –
-           genau das war die ms-v5-Regression). -->
-      <button type="button" class="btn block cyan" id="scanPhotoBtn">📷 Packung scannen</button>
-      <input type="file" id="barfile" accept="image/*" hidden>
-      <p class="small muted" style="margin:8px 2px 0">Neues Foto aufnehmen <b>oder ein vorhandenes aus der Galerie wählen</b> – MediScan liest den <b>PZN-Strichcode</b>, den quadratischen <b>Data-Matrix-Code</b> oder, falls kein Code lesbar ist, den <b>Präparatenamen</b>. Alles direkt auf dem Gerät.</p>
+      <!-- Zwei klar getrennte Wege, beide münden in DENSELBEN Decoder:
+           „Foto aufnehmen" öffnet über capture="environment" direkt die Kamera,
+           „Aus Galerie wählen" öffnet OHNE capture den Foto-/Datei-Picker mit den
+           bereits vorhandenen Bildern. Warum getrennt statt ein Input für beides?
+           Moderne Android-Versionen routen accept="image/*" OHNE capture zwingend
+           in den Android-Foto-Picker (nur Galerie, KEINE Kamera) – ein einzelner
+           Input kann daher nicht mehr zuverlässig beides anbieten. Deshalb je ein
+           eigener Input, jeweils per .click() aus einer echten Nutzergeste geöffnet
+           (öffnet auch bei display:none und auf Samsung Internet; ein <label for=>
+           auf einen `hidden`-Input tut das dort nicht – das war die ms-v5-
+           Regression). Beide Wege lesen 1D-PZN-Strichcode, 2D-Data-Matrix und –
+           wenn kein Code lesbar ist – den aufgedruckten Präparatenamen per
+           Texterkennung. -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button type="button" class="btn cyan" id="scanCamBtn" style="flex:1 1 150px">📷 Foto aufnehmen</button>
+        <button type="button" class="btn" id="scanGalBtn" style="flex:1 1 150px">🖼️ Aus Galerie wählen</button>
+      </div>
+      <input type="file" id="barfileCam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="barfileGal" accept="image/*" hidden>
+      <p class="small muted" style="margin:8px 2px 0"><b>Foto aufnehmen</b> öffnet die Kamera, <b>Aus Galerie wählen</b> ein bereits vorhandenes Bild – MediScan liest den <b>PZN-Strichcode</b>, den quadratischen <b>Data-Matrix-Code</b> oder, falls kein Code lesbar ist, den <b>Präparatenamen</b>. Alles direkt auf dem Gerät.</p>
 
       <!-- Standbild + Fortschritt der Texterkennung (nur sichtbar, wenn kein Code
            gefunden wurde und der Name gelesen wird). -->
