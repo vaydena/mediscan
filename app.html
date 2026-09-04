@@ -219,44 +219,34 @@ body.ms-locked{overflow:hidden}
     </div>
 
     <div id="pane-scan" hidden>
-      <!-- Primärweg: Foto über die System-Kamera. Öffnet die Kamera-App des
-           Telefons (die ihre Berechtigung bereits hat) und liest den Code aus
-           dem Standbild – umgeht Androids Sperre des Live-Berechtigungsdialogs
-           bei aktiver Bildschirm-Einblendung anderer Apps. -->
-      <label class="btn block cyan" id="scanPhotoBtn" for="barfile" role="button" tabindex="0">📷 Barcode / PZN fotografieren</label>
+      <!-- EIN Scan liest alles: Öffnet die System-Kamera (Standbild) und liest den
+           1D-PZN-Strichcode, den 2D-Data-Matrix-Code – und wenn kein Code lesbar
+           ist, den aufgedruckten Präparatenamen per Texterkennung. Der Standbild-
+           Weg umgeht Androids Sperre des Live-Berechtigungsdialogs bei aktiver
+           Bildschirm-Einblendung anderer Apps (die Kamera-App hat ihre Freigabe
+           bereits). Das Öffnen macht barfile.click() aus diesem echten Klick –
+           zuverlässig auch auf Samsung Internet (ein <label for=> öffnet einen
+           per `hidden` versteckten Datei-Input dort nicht). -->
+      <button type="button" class="btn block cyan" id="scanPhotoBtn">📷 Packung scannen</button>
       <input type="file" id="barfile" accept="image/*" capture="environment" hidden>
-      <p class="small muted" style="margin:8px 2px 0">Fotografieren Sie den Strichcode (PZN) oder den quadratischen Data-Matrix-Code auf der Packung – der Code wird direkt auf dem Gerät gelesen. Funktioniert auch dann, wenn der Live-Scanner blockiert ist.</p>
+      <p class="small muted" style="margin:8px 2px 0">Fotografieren Sie die Packung – MediScan liest den <b>PZN-Strichcode</b>, den quadratischen <b>Data-Matrix-Code</b> oder, falls kein Code lesbar ist, den <b>Präparatenamen</b>. Alles direkt auf dem Gerät.</p>
 
-      <!-- Optionaler Live-Scanner (kontinuierlich). Braucht die Kamera-Freigabe
-           im Browser; falls Android diese sperrt, bitte den Foto-Weg oben nutzen. -->
-      <div class="scanview" id="scanview" hidden>
-        <video id="scanvid" playsinline muted autoplay></video>
-        <div class="scanframe" aria-hidden="true"></div>
-        <button type="button" class="btn ghost small scanstop" id="scanStop">Stoppen</button>
+      <!-- Standbild + Fortschritt der Texterkennung (nur sichtbar, wenn kein Code
+           gefunden wurde und der Name gelesen wird). -->
+      <img id="thumb" class="thumb" hidden alt="">
+      <div id="ocrbox" hidden>
+        <div class="progress"><i id="ocrbar"></i></div>
+        <div class="small muted" id="ocrmsg">Texterkennung …</div>
       </div>
-      <button type="button" class="btn ghost small" id="scanStart" style="margin-top:10px">Oder: Live-Scanner starten (kontinuierlich)</button>
 
-      <!-- Manuelle PZN-Eingabe -->
-      <div class="pznrow">
-        <input type="text" id="pzn" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="PZN eingeben (z. B. 12345678) …" aria-label="PZN eingeben">
-        <button type="button" class="btn" id="pznBtn">Prüfen</button>
-      </div>
-      <p class="small muted" style="margin:6px 2px 0">Die PZN steht auf der Packung (z. B. „PZN-12345678"). Eine Zuordnung PZN→Präparat wird ausschließlich <b>auf diesem Gerät</b> gespeichert – es gibt kein zentrales Register.</p>
-
-      <!-- Foto/OCR (Namen erkennen) als Alternative -->
+      <!-- Notnagel ohne Kamera: PZN von Hand eintippen -->
       <details class="ocrdetails">
-        <summary>Alternativ: Foto der Packung – Namen per Texterkennung</summary>
-        <label class="drop" id="drop" for="file">
-          <input type="file" id="file" accept="image/*" capture="environment">
-          <div><b>Foto der Verpackung/des Beipackzettels wählen</b></div>
-          <div class="small muted">Der Text wird auf dem Gerät erkannt und mit der Wirkstoff-Datenbank abgeglichen.</div>
-          <img id="thumb" class="thumb" hidden alt="">
-        </label>
-        <div id="ocrbox" hidden>
-          <div class="progress"><i id="ocrbar"></i></div>
-          <div class="small muted" id="ocrmsg">Texterkennung …</div>
+        <summary>Kein Code lesbar? PZN von Hand eintippen</summary>
+        <div class="pznrow">
+          <input type="text" id="pzn" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="PZN (z. B. 12345678) …" aria-label="PZN eingeben">
+          <button type="button" class="btn" id="pznBtn">Prüfen</button>
         </div>
-        <p class="small muted" style="margin:10px 2px 0">Hinweis: Die Texterkennung lädt beim ersten Mal ein Sprachpaket (Internet nötig). Danach nutzen Sie am besten die Suche oder korrigieren erkannte Namen manuell.</p>
+        <p class="small muted" style="margin:6px 2px 0">Die PZN steht auf der Packung (z. B. „PZN-12345678"). Eine Zuordnung PZN→Präparat wird ausschließlich <b>auf diesem Gerät</b> gespeichert – es gibt kein zentrales Register.</p>
       </details>
     </div>
 

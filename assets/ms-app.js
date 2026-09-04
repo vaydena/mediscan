@@ -462,8 +462,11 @@
     } catch (e) { /* kein Code gefunden / offline */ }
     if (reader) { try { reader.reset(); } catch (e) {} }
     if (url) { try { URL.revokeObjectURL(url); } catch (e) {} }
-    toast("Auf dem Foto war kein lesbarer Barcode. Bitte näher heran und scharf stellen – oder die PZN unten eintippen.");
-    return false;
+    // Kein 1D-/2D-Code lesbar → denselben Schnappschuss per Texterkennung auf den
+    // aufgedruckten Präparatenamen prüfen. So liest EIN Scan alles: PZN-Strichcode,
+    // Data-Matrix und – als Rückfall – den Namen.
+    toast("Kein Code erkannt – der Name wird per Texterkennung gelesen …");
+    return runOCR(file);
   }
 
   async function startScan() {
@@ -866,27 +869,19 @@
       var b = e.target.closest("button.toggle[data-key]"); if (b) toggleProfile(b.getAttribute("data-key"));
     });
 
-    el("file").addEventListener("change", function (e) {
-      var f = e.target.files && e.target.files[0]; if (f) runOCR(f);
-    });
-
     // Barcode-Foto über die System-Kamera (umgeht die Live-Berechtigungssperre).
-    // Das ÖFFNEN der Kamera macht das <label for="barfile"> nativ – ganz ohne JS
-    // (robust auch bei noch nicht aktualisiertem Script). Deshalb hier KEIN
-    // photoBtn.click()-Handler mehr (der würde die Kamera doppelt öffnen); wir
-    // hängen nur das Auslesen des aufgenommenen Fotos ein.
-    var barfile = el("barfile");
-    if (barfile) {
+    // Ein <label for=> öffnet einen mit `hidden` (display:none) versteckten
+    // Datei-Input auf manchen Android-Browsern (Samsung Internet) NICHT. Deshalb
+    // öffnen wir die Kamera per JS mit barfile.click() aus dem echten <button>-
+    // Klick heraus – das funktioniert auch bei display:none, weil es aus einer
+    // Nutzergeste kommt. Ein <button> feuert click auch per Enter/Leertaste (A11y).
+    var photoBtn = el("scanPhotoBtn"), barfile = el("barfile");
+    if (photoBtn && barfile) {
+      photoBtn.addEventListener("click", function () { try { barfile.click(); } catch (x) {} });
       barfile.addEventListener("change", function (e) {
         var f = e.target.files && e.target.files[0];
         try { e.target.value = ""; } catch (x) {} // erneutes Fotografieren desselben Motivs erlauben
         if (f) decodeImageFile(f);
-      });
-      // Tastatur-Bedienung des Label-Buttons (Tap öffnet das Label ohnehin nativ;
-      // ein zusätzlicher Klick-Handler würde bei Tap doppelt auslösen).
-      var photoBtn = el("scanPhotoBtn");
-      if (photoBtn) photoBtn.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); try { barfile.click(); } catch (x) {} }
       });
     }
 
