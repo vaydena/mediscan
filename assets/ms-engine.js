@@ -70,6 +70,35 @@ window.MediScan = (function () {
     return String(s || "").replace(/(^|[\s\-\/])([a-zäöü])/g, function (_m, sep, ch) { return sep + ch.toUpperCase(); });
   }
 
+  // Trailing Dosis-/Darreichungs-Tokens abschneiden ("l-thyrox hexal 75",
+  // "ibuprofen 400", "… 100 g") -> Kernname für stärke-tolerante Suche.
+  // (norm() hat µ bereits zu Space gemacht -> aus "µg" wird das Token "g".)
+  function stripDose(s) {
+    var t = norm(s).split(" ").filter(Boolean), changed = true;
+    while (t.length > 1 && changed) {
+      changed = false;
+      var last = t[t.length - 1];
+      if (/^\d+([.,]\d+)?$/.test(last)) { t.pop(); changed = true; }
+      else if (/^(mg|mcg|ug|µg|g|ml|l|ie|mmol|%|retard|tabl?|tabletten?|filmtabl(ette[n]?)?|kaps(el[n]?)?|stk|st)$/.test(last)) { t.pop(); changed = true; }
+    }
+    return t.join(" ");
+  }
+  // Scoring-Helfer für search(): Gleichheit > Präfix > Teilstring.
+  function scMed(hay, needle) {
+    if (!needle) return 0;
+    if (hay === needle) return 100;
+    if (hay.indexOf(needle) === 0) return 80;
+    if (hay.indexOf(needle) !== -1) return 60;
+    return 0;
+  }
+  function scSyn(hay, needle) {
+    if (!needle || needle.length < 2) return 0;
+    if (hay === needle) return 95;
+    if (hay.indexOf(needle) === 0) return 78;
+    if (needle.length >= 3 && hay.indexOf(needle) !== -1) return 58;
+    return 0;
+  }
+
   // Levenshtein mit Frühabbruch (max)
   function lev(a, b, max) {
     var la = a.length, lb = b.length;
@@ -228,30 +257,29 @@ window.MediScan = (function () {
     var q = norm(query);
     if (q.length < 2) return [];
     limit = limit || 12;
+    // Stärke-tolerant: "L-Thyrox HEXAL 75", "Ibuprofen 400" auch ohne Dosis finden.
+    var qCore = stripDose(q);
+    var useCore = qCore !== q && qCore.length >= 2;
     var scored = [];
     // direkte Medikamenten-/Wirkstoff-Treffer
     for (var id in IDX.medById) {
       var m = IDX.medById[id];
       var nName = norm(m.name), nIng = norm(m.activeIngredient);
-      var s = 0;
-      if (nName === q || nIng === q) s = 100;
-      else if (nName.indexOf(q) === 0 || nIng.indexOf(q) === 0) s = 80;
-      else if (nName.indexOf(q) !== -1 || nIng.indexOf(q) !== -1) s = 60;
+      var s = Math.max(scMed(nName, q), scMed(nIng, q));
+      if (useCore) s = Math.max(s, scMed(nName, qCore), scMed(nIng, qCore));
       if (s > 0) scored.push({ ids: [m.id], name: m.name, sub: m.activeIngredient, category: m.category, via: null, s: s, key: "m" + m.id });
     }
     // Handelsnamen-Treffer (inkl. Kombipräparate)
     var syn = DB.synonyms || {};
     Object.keys(syn).forEach(function (k) {
-      var nk = norm(k), s = 0;
-      if (nk === q) s = 95;
-      else if (nk.indexOf(q) === 0) s = 78;
-      else if (q.length >= 3 && nk.indexOf(q) !== -1) s = 58;
+      var nk = norm(k);
+      var s = Math.max(scSyn(nk, q), useCore ? scSyn(nk, qCore) : 0);
       if (!s) return;
       var ids = IDX.synResolve[nk];
       if (!ids || !ids.length) return;
       if (ids.length === 1) {
         var mm = IDX.medById[ids[0]];
-        scored.push({ ids: [mm.id], name: mm.name, sub: mm.activeIngredient, category: mm.category, via: k, s: s, key: "m" + mm.id });
+        scored.push({ ids: [mm.id], name: mm.name, sub: mm.activeIngredient, category: mm.category, via: k, brand: cap(k), s: s, key: "m" + mm.id });
       } else {
         var subs = ids.map(function (i) { return IDX.medById[i].activeIngredient; }).join(" + ");
         scored.push({ ids: ids.slice(), name: cap(k), sub: subs, category: "Kombipräparat", via: k, s: s + 3, key: "c" + nk });

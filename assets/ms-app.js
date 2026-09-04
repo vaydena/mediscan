@@ -311,9 +311,13 @@
     ac.innerHTML = list.map(function (p, i) {
       var combo = p.ids && p.ids.length > 1;
       var tag = combo ? ' <span class="ac-combo">Kombi</span>' : '';
+      // Über eine Marke/Synonym gefunden? Dann zeigen, dass die Eingabe erkannt
+      // wurde (Wirkstoff bleibt Haupteintrag) – außer der Treffername ist die Marke.
+      var via = (p.brand && p.brand.toLowerCase() !== String(p.name || "").toLowerCase())
+        ? ' <span class="ac-via">· Treffer für „' + esc(p.brand) + '"</span>' : '';
       return '<button type="button" data-idx="' + i + '" class="' + (i === 0 ? "active" : "") + '">' +
         '<div>' + esc(p.name) + tag + '</div>' +
-        '<div class="ing">' + esc(p.sub) + (p.category ? " · " + esc(p.category) : "") + '</div></button>';
+        '<div class="ing">' + esc(p.sub) + (p.category ? " · " + esc(p.category) : "") + via + '</div></button>';
     }).join("");
     ac.hidden = false;
   }

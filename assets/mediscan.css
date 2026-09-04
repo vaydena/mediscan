@@ -85,6 +85,7 @@ img{max-width:100%}
 .ac button:last-child{border-bottom:0}
 .ac button:hover,.ac button.active{background:var(--bg)}
 .ac .ing{color:var(--muted);font-size:.84rem}
+.ac .ac-via{color:var(--cyan-d);font-weight:600}
 .ac-combo{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;
   background:#e0f7fa;color:var(--cyan-d);font-size:.68rem;font-weight:700;vertical-align:middle;
   letter-spacing:.02em;text-transform:uppercase}

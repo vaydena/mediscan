@@ -133,6 +133,26 @@ function ok(name, cond, extra) {
   let ltd = MS.detect("L-Thyrox HEXAL 75 Mikrogramm Tabletten").map(x => x.ingredient);
   ok("Scan 'L-Thyrox HEXAL 75 …' -> Levothyroxin", ltd.includes("Levothyroxin"), JSON.stringify(ltd));
 
+  // --- Marken-Suche sichtbar + stärke-tolerant (2026-09-04, SW -19) ----------
+  // (a) exakt der gemeldete Nutzerfall: "L-Thyroxin" tippen findet den Eintrag …
+  let ltx = MS.search("L-Thyroxin");
+  ok("Suche 'L-Thyroxin' -> Levothyroxin", ltx.length > 0 && /levothyroxin/i.test(ltx[0].sub), ltx.map(m => m.name).join(","));
+  // … und der Treffer weist die erkannte Marke aus (brand-Feld, != Wirkstoffname)
+  ok("Treffer trägt Marken-Hinweis 'brand' (!= Wirkstoffname)",
+    !!ltx[0] && /l-?thyroxin/i.test(ltx[0].brand || "") && (ltx[0].brand || "").toLowerCase() !== (ltx[0].name || "").toLowerCase(),
+    "brand=" + (ltx[0] && ltx[0].brand));
+  // (b) stärke-tolerant: voller Markenname MIT Dosis (früher 0 Treffer)
+  let lts = MS.search("L-Thyrox HEXAL 75");
+  ok("stärke-tolerant: 'L-Thyrox HEXAL 75' -> Levothyroxin", lts.length > 0 && /levothyroxin/i.test(lts[0].sub), lts.map(m => m.name).join(","));
+  let lts2 = MS.search("l-thyrox hexal 100 µg");
+  ok("stärke-tolerant: 'l-thyrox hexal 100 µg' -> Levothyroxin", lts2.length > 0 && /levothyroxin/i.test(lts2[0].sub), lts2.map(m => m.name).join(","));
+  // (c) auch generischer Name mit Dosis
+  let ibx = MS.search("Ibuprofen 400");
+  ok("stärke-tolerant: 'Ibuprofen 400' -> Ibuprofen", ibx.length > 0 && /ibuprofen/i.test(ibx[0].sub), ibx.map(m => m.name).join(","));
+  // (d) generisch getippt -> KEIN Marken-Hinweis (via null, brand leer)
+  let lvx = MS.search("Levothyroxin");
+  ok("generisch 'Levothyroxin' ohne Marken-Hinweis", lvx.length > 0 && !lvx[0].brand, "brand=" + (lvx[0] && lvx[0].brand));
+
   // --- Marken-Dubletten-Bereinigung (2026-09-04, DB ms-db-2026-09-04-5) -----
   // Marken-Interaktionszeilen (Losec/Nexium …) doppelten früher die generische
   // Zeile (Omeprazol/Esomeprazol). Da interactionsFor() über den Wirkstoff matcht,
