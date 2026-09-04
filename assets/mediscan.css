@@ -99,11 +99,11 @@ img{max-width:100%}
   background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
 .scanstop{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.92)}
 /* PZN-Eingabe */
-.pznrow{display:flex;gap:8px;margin-top:14px}
-.pznrow input{flex:1;font:inherit;padding:13px 14px;border:1px solid var(--line);border-radius:12px;
+.pznrow{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.pznrow input{width:100%;font:inherit;padding:13px 14px;border:1px solid var(--line);border-radius:12px;
   letter-spacing:.06em}
 .pznrow input:focus{outline:0;border-color:var(--cyan)}
-.pznrow .btn{white-space:nowrap}
+.pznrow .btn{white-space:nowrap;width:100%;padding:13px 14px}
 .pznpending{margin-top:14px;display:flex;gap:12px;align-items:flex-start;
   background:var(--warnbg);border:1px solid var(--warnln);border-radius:12px;padding:12px 14px}
 .pznpending .pzn-txt{font-size:.9rem;color:#6b5300;line-height:1.45}
