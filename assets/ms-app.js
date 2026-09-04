@@ -984,24 +984,10 @@
     wirePhotoInput("scanCamBtn", "barfileCam");   // Kamera
     wirePhotoInput("scanGalBtn", "barfileGal");   // Galerie
 
-    // PZN ODER Name: manuelle Eingabe + Prüfen.
-    // Sieht die Eingabe wie eine PZN aus -> bisherige PZN-Logik. Enthält sie
-    // Buchstaben (also ein Name), wird sie in die vorhandene Namenssuche oben
-    // umgeleitet, statt mit "keine gültige PZN" abgelehnt zu werden.
+    // PZN: manuelle Eingabe + Prüfen
     var pzn = el("pzn");
     if (pzn) {
-      var doPzn = function () {
-        var v = pzn.value.trim();
-        if (!v) return;
-        if (MS.pzn.parse(v)) { if (handlePZN(v)) pzn.value = ""; return; }
-        var q = el("q");
-        if (!q) { handlePZN(v); return; }        // Fallback: alte Meldung
-        var matches = MS.search(v, 12);
-        q.value = v; renderAC(matches); pzn.value = "";
-        try { q.scrollIntoView({ block: "center" }); } catch (e) {}
-        q.focus();
-        if (!matches || !matches.length) toast("Kein Präparat mit diesem Namen gefunden.");
-      };
+      var doPzn = function () { var v = pzn.value; if (!v.trim()) return; if (handlePZN(v)) pzn.value = ""; };
       el("pznBtn").addEventListener("click", doPzn);
       pzn.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); doPzn(); } });
     }
