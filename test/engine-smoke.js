@@ -126,6 +126,12 @@ function ok(name, cond, extra) {
   let newSyn = MS.detect("Patient nimmt Seroquel und Xarelto");
   let nsi = newSyn.map(x => x.ingredient);
   ok("neuer Handelsname Seroquel -> Quetiapin", nsi.includes("Quetiapin"), JSON.stringify(nsi));
+  // L-Thyrox HEXAL (Levothyroxin): getippte Suche des vollen Markennamens findet den Wirkstoff
+  let lt = MS.search("l-thyrox hexal");
+  ok("Suche 'l-thyrox hexal' -> Levothyroxin", lt.length > 0 && /levothyroxin/i.test(lt[0].sub), lt.map(m => m.name).join(","));
+  // und der Packungstext wird per Scan/OCR erkannt
+  let ltd = MS.detect("L-Thyrox HEXAL 75 Mikrogramm Tabletten").map(x => x.ingredient);
+  ok("Scan 'L-Thyrox HEXAL 75 …' -> Levothyroxin", ltd.includes("Levothyroxin"), JSON.stringify(ltd));
 
   // --- Kombipräparate: ein Handelsname -> mehrere Wirkstoffe ---
   let jm = MS.search("janumet");
