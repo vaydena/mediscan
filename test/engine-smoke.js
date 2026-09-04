@@ -151,6 +151,31 @@ function ok(name, cond, extra) {
   ok("bereinigt: Levothyroxin + Esomeprazol (inkl. Marke Nexium) = genau 1 Zeile",
     pairLines(esoAll, /esomeprazol/i) === 1, "n=" + pairLines(esoAll, /esomeprazol/i));
 
+  // --- Gruppe-A-Harmonisierung (2026-09-04, DB ms-db-2026-09-04-6) -----------
+  // 50 Marken-Zeilen trugen einen ANDEREN (markenspezifischen) Titel als die
+  // generische Zeile -> keine Titel-Dedup -> dieselbe Interaktion erschien
+  // ZWEIMAL mit widersprüchlichem Schweregrad. Belegbasiert vereinheitlicht:
+  // Marken-Zeile entfernt, generische Zeile auf den belegten Schweregrad ->
+  // jedes Paar MUSS jetzt GENAU EINE Zeile mit korrektem Schweregrad liefern.
+  const oneIng = (w) => (rawDbEarly.medications
+    .find(m => MS.norm(m.activeIngredient) === MS.norm(w)) || {}).id;
+  const harmo = (w1, w2, sevWant) => {
+    const L = MS.interactionsFor([oneIng(w1), oneIng(w2)]);
+    return { n: L.length, sev: L[0] && L[0].severity,
+      pass: L.length === 1 && !!L[0] && L[0].severity === sevWant };
+  };
+  let hh;
+  hh = harmo("Escitalopram", "Duloxetin", 3);
+  ok("harmonisiert: Escitalopram+Duloxetin (SSRI+SNRI) = 1 Zeile, Schwer(3)", hh.pass, "n=" + hh.n + " sev=" + hh.sev);
+  hh = harmo("Tramadol", "Lorazepam", 3);
+  ok("harmonisiert: Tramadol+Lorazepam (Opioid+Benzo) = 1 Zeile, Schwer(3)", hh.pass, "n=" + hh.n + " sev=" + hh.sev);
+  hh = harmo("Clopidogrel", "Omeprazol", 3);
+  ok("harmonisiert: Clopidogrel+Omeprazol = 1 Zeile, Schwer(3) [angehoben, FDA rät ab]", hh.pass, "n=" + hh.n + " sev=" + hh.sev);
+  hh = harmo("Clopidogrel", "Pantoprazol", 1);
+  ok("harmonisiert: Clopidogrel+Pantoprazol = 1 Zeile, Mild(1) [Pantoprazol empf. PPI]", hh.pass, "n=" + hh.n + " sev=" + hh.sev);
+  hh = harmo("Paracetamol", "Carbamazepin", 2);
+  ok("harmonisiert: Paracetamol+Carbamazepin = 1 Zeile, Moderat(2)", hh.pass, "n=" + hh.n + " sev=" + hh.sev);
+
   // --- Kombipräparate: ein Handelsname -> mehrere Wirkstoffe ---
   let jm = MS.search("janumet");
   let jmPick = jm.find(p => p.ids.length > 1);
