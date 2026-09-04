@@ -219,17 +219,18 @@ body.ms-locked{overflow:hidden}
     </div>
 
     <div id="pane-scan" hidden>
-      <!-- EIN Scan liest alles: Öffnet die System-Kamera (Standbild) und liest den
-           1D-PZN-Strichcode, den 2D-Data-Matrix-Code – und wenn kein Code lesbar
-           ist, den aufgedruckten Präparatenamen per Texterkennung. Der Standbild-
-           Weg umgeht Androids Sperre des Live-Berechtigungsdialogs bei aktiver
-           Bildschirm-Einblendung anderer Apps (die Kamera-App hat ihre Freigabe
-           bereits). Das Öffnen macht barfile.click() aus diesem echten Klick –
-           zuverlässig auch auf Samsung Internet (ein <label for=> öffnet einen
-           per `hidden` versteckten Datei-Input dort nicht). -->
+      <!-- EIN Scan liest alles: Der Button öffnet per barfile.click() den System-
+           Dialog. OHNE capture-Attribut bietet Android/iOS dort BEIDES an – ein
+           neues Foto mit der Kamera aufnehmen ODER ein bereits vorhandenes Bild aus
+           der Galerie wählen. Beide Wege durchlaufen denselben Decoder: 1D-PZN-
+           Strichcode, 2D-Data-Matrix und – wenn kein Code lesbar ist – der auf-
+           gedruckte Präparatename per Texterkennung. barfile.click() aus einem
+           echten Klick öffnet den Dialog zuverlässig auch auf Samsung Internet
+           (ein <label for=> öffnet einen per `hidden` versteckten Input dort nicht –
+           genau das war die ms-v5-Regression). -->
       <button type="button" class="btn block cyan" id="scanPhotoBtn">📷 Packung scannen</button>
-      <input type="file" id="barfile" accept="image/*" capture="environment" hidden>
-      <p class="small muted" style="margin:8px 2px 0">Fotografieren Sie die Packung – MediScan liest den <b>PZN-Strichcode</b>, den quadratischen <b>Data-Matrix-Code</b> oder, falls kein Code lesbar ist, den <b>Präparatenamen</b>. Alles direkt auf dem Gerät.</p>
+      <input type="file" id="barfile" accept="image/*" hidden>
+      <p class="small muted" style="margin:8px 2px 0">Neues Foto aufnehmen <b>oder ein vorhandenes aus der Galerie wählen</b> – MediScan liest den <b>PZN-Strichcode</b>, den quadratischen <b>Data-Matrix-Code</b> oder, falls kein Code lesbar ist, den <b>Präparatenamen</b>. Alles direkt auf dem Gerät.</p>
 
       <!-- Standbild + Fortschritt der Texterkennung (nur sichtbar, wenn kein Code
            gefunden wurde und der Name gelesen wird). -->
