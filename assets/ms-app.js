@@ -121,8 +121,12 @@
     card.hidden = false;
     chips.innerHTML = selected.map(function (id) {
       var m = MS.medById(id); if (!m) return "";
-      return '<span class="chip">' + esc(m.name) +
-        '<small>' + esc(m.activeIngredient) + '</small>' +
+      // Wirkstoff nur zeigen, wenn er sich vom Namen unterscheidet (bei Generika
+      // ist name === activeIngredient → sonst stünde dasselbe Wort doppelt).
+      var ing = m.activeIngredient || "";
+      var sub = (ing && ing.toLowerCase() !== String(m.name || "").toLowerCase())
+        ? '<small>' + esc(ing) + '</small>' : '';
+      return '<span class="chip">' + esc(m.name) + sub +
         '<button class="x" data-id="' + id + '" aria-label="Entfernen">×</button></span>';
     }).join("");
   }
