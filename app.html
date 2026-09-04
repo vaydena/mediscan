@@ -219,14 +219,22 @@ body.ms-locked{overflow:hidden}
     </div>
 
     <div id="pane-scan" hidden>
-      <!-- Live-Kamera: Barcode (PZN) / Data-Matrix -->
+      <!-- Primärweg: Foto über die System-Kamera. Öffnet die Kamera-App des
+           Telefons (die ihre Berechtigung bereits hat) und liest den Code aus
+           dem Standbild – umgeht Androids Sperre des Live-Berechtigungsdialogs
+           bei aktiver Bildschirm-Einblendung anderer Apps. -->
+      <button type="button" class="btn block cyan" id="scanPhotoBtn">📷 Barcode / PZN fotografieren</button>
+      <input type="file" id="barfile" accept="image/*" capture="environment" hidden>
+      <p class="small muted" style="margin:8px 2px 0">Fotografieren Sie den Strichcode (PZN) oder den quadratischen Data-Matrix-Code auf der Packung – der Code wird direkt auf dem Gerät gelesen. Funktioniert auch dann, wenn der Live-Scanner blockiert ist.</p>
+
+      <!-- Optionaler Live-Scanner (kontinuierlich). Braucht die Kamera-Freigabe
+           im Browser; falls Android diese sperrt, bitte den Foto-Weg oben nutzen. -->
       <div class="scanview" id="scanview" hidden>
         <video id="scanvid" playsinline muted autoplay></video>
         <div class="scanframe" aria-hidden="true"></div>
         <button type="button" class="btn ghost small scanstop" id="scanStop">Stoppen</button>
       </div>
-      <button type="button" class="btn block cyan" id="scanStart">📷 Barcode / PZN mit Kamera scannen</button>
-      <p class="small muted" style="margin:8px 2px 0">Richten Sie den Strichcode (PZN) oder den quadratischen Data-Matrix-Code der Packung in den Rahmen.</p>
+      <button type="button" class="btn ghost small" id="scanStart" style="margin-top:10px">Oder: Live-Scanner starten (kontinuierlich)</button>
 
       <!-- Manuelle PZN-Eingabe -->
       <div class="pznrow">

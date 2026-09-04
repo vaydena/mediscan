@@ -416,6 +416,56 @@
     try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
     handlePZN("PZN " + r.pzn);
   }
+
+  // ---- Foto-Barcode über die System-Kamera ----------------------------------
+  // Nimmt EIN Standbild über die native Kamera-App auf (Datei-Input mit
+  // capture="environment") und liest Barcode/PZN daraus. Braucht KEIN
+  // getUserMedia und keinen Web-Berechtigungsdialog – deshalb funktioniert es
+  // auch dann, wenn Android den Live-Kamerazugriff wegen einer Bildschirm-
+  // Einblendung anderer Apps blockiert ("Diese Website darf nicht nach deiner
+  // Berechtigung fragen"). Die Kamera-App hat ihre Berechtigung bereits; das
+  // Bild wird ausschließlich auf dem Gerät verarbeitet – kein Upload.
+  function onPhotoHit(r) {
+    try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
+    handlePZN("PZN " + r.pzn);
+  }
+  async function decodeImageFile(file) {
+    if (!file) return false;
+    toast("Barcode wird gelesen …");
+    var url = null; try { url = URL.createObjectURL(file); } catch (e) {}
+    // 1) Native BarcodeDetector auf dem Standbild (offline, Android-Chrome/Edge).
+    if (("BarcodeDetector" in window) && typeof createImageBitmap === "function") {
+      try {
+        var det = new window.BarcodeDetector({
+          formats: ["code_39", "ean_13", "ean_8", "data_matrix", "code_128", "itf", "qr_code"]
+        });
+        var bmp = await createImageBitmap(file);
+        var codes = await det.detect(bmp);
+        try { if (bmp && bmp.close) bmp.close(); } catch (e) {}
+        for (var i = 0; codes && i < codes.length; i++) {
+          var r = MS.pzn.parse(codes[i].rawValue || "");
+          if (r) { if (url) { try { URL.revokeObjectURL(url); } catch (e) {} } onPhotoHit(r); return true; }
+        }
+      } catch (e) { /* kein Treffer -> ZXing versuchen */ }
+    }
+    // 2) ZXing-Fallback (lazy per CDN, nur online).
+    var reader = null;
+    try {
+      await loadZXing();
+      reader = new window.ZXing.BrowserMultiFormatReader();
+      var result = url ? await reader.decodeFromImageUrl(url) : null;
+      if (result) {
+        var raw = result.getText ? result.getText() : String(result);
+        var r2 = MS.pzn.parse(raw);
+        if (r2) { try { reader.reset(); } catch (e) {} if (url) { try { URL.revokeObjectURL(url); } catch (e) {} } onPhotoHit(r2); return true; }
+      }
+    } catch (e) { /* kein Code gefunden / offline */ }
+    if (reader) { try { reader.reset(); } catch (e) {} }
+    if (url) { try { URL.revokeObjectURL(url); } catch (e) {} }
+    toast("Auf dem Foto war kein lesbarer Barcode. Bitte näher heran und scharf stellen – oder die PZN unten eintippen.");
+    return false;
+  }
+
   async function startScan() {
     if (scanning) return;
     if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
@@ -435,7 +485,17 @@
       scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
     } catch (e) {
       scanning = false; el("scanview").hidden = true; el("scanStart").hidden = false;
-      toast("Kamerazugriff nicht möglich. Bitte erlauben oder PZN manuell eingeben."); return;
+      var nm = (e && e.name) || "";
+      if (nm === "NotAllowedError" || nm === "SecurityError") {
+        toast("Live-Kamera blockiert – häufig durch eine Bildschirm-Einblendung anderer Apps (Blaulichtfilter, Bildschirm-Dimmer, Chat-Blasen). Tippen Sie oben auf „Barcode / PZN fotografieren“ – das umgeht die Sperre.");
+      } else if (nm === "NotReadableError" || nm === "AbortError") {
+        toast("Kamera ist gerade von einer anderen App belegt. Bitte diese schließen – oder oben „Barcode / PZN fotografieren“ nutzen.");
+      } else if (nm === "NotFoundError" || nm === "OverconstrainedError") {
+        toast("Keine passende Kamera gefunden. Bitte oben „Barcode / PZN fotografieren“ nutzen oder die PZN eintippen.");
+      } else {
+        toast("Live-Kamera nicht möglich. Bitte oben „Barcode / PZN fotografieren“ nutzen oder die PZN eintippen.");
+      }
+      return;
     }
     var vid = el("scanvid");
     vid.srcObject = scanStream; try { await vid.play(); } catch (e) {}
@@ -809,6 +869,17 @@
     el("file").addEventListener("change", function (e) {
       var f = e.target.files && e.target.files[0]; if (f) runOCR(f);
     });
+
+    // Barcode-Foto über die System-Kamera (umgeht die Live-Berechtigungssperre)
+    var photoBtn = el("scanPhotoBtn"), barfile = el("barfile");
+    if (photoBtn && barfile) {
+      photoBtn.addEventListener("click", function () { try { barfile.click(); } catch (x) {} });
+      barfile.addEventListener("change", function (e) {
+        var f = e.target.files && e.target.files[0];
+        try { e.target.value = ""; } catch (x) {} // erneutes Fotografieren desselben Motivs erlauben
+        if (f) decodeImageFile(f);
+      });
+    }
 
     // PZN: manuelle Eingabe + Prüfen
     var pzn = el("pzn");
