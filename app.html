@@ -15,6 +15,17 @@
 <link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/mediscan.css">
+<script>
+/* Installations-Prompt so frueh wie moeglich einfangen: Chromium feuert
+   "beforeinstallprompt" nur EINMAL und oft schon vor dem Ende des Seitenaufbaus.
+   Wir merken uns das Event und melden es der spaeteren UI ueber ein eigenes Event. */
+window.__msDeferredInstall = null; window.__msInstalled = false;
+window.addEventListener("beforeinstallprompt", function (e) {
+  e.preventDefault(); window.__msDeferredInstall = e;
+  try { window.dispatchEvent(new Event("ms-installable")); } catch (x) {}
+});
+window.addEventListener("appinstalled", function () { window.__msInstalled = true; });
+</script>
 <style>
 /* ---- Zugangs-Sperre (Bestätigungscode) ---- */
 #ms-gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;
@@ -40,6 +51,27 @@
 #ms-gate .gfoot{margin-top:16px;font-size:.85rem;color:#6f8a85;line-height:1.7}
 @media (prefers-reduced-motion:reduce){ #ms-gate .spin{animation:none} }
 body.ms-locked{overflow:hidden}
+
+/* ---- „Als App installieren"-Hinweis ---- */
+#ms-install{display:none;align-items:center;gap:12px;margin:0 0 14px;
+  background:#e0f2f1;border:1px solid #9fd3cd;border-radius:14px;padding:12px 14px}
+#ms-install .ii{flex:0 0 auto;font-size:1.5rem;line-height:1}
+#ms-install .it{flex:1 1 auto;min-width:0;font-size:.92rem;color:#00463d;line-height:1.45}
+#ms-install .it b{color:#00695c}
+#ms-install .ibtn{flex:0 0 auto;border:0;cursor:pointer;font:inherit;font-weight:700;
+  background:#00897b;color:#fff;padding:9px 16px;border-radius:999px}
+#ms-install .ibtn:hover{background:#00695c}
+#ms-install .ix{flex:0 0 auto;border:0;background:transparent;color:#5a7d78;cursor:pointer;
+  font-size:1.3rem;line-height:1;padding:2px 4px}
+#ms-install .ix:hover{color:#00463d}
+
+/* ---- kurzes Aufleuchten des Scan-Bereichs, wenn per Verknuepfung geoeffnet ---- */
+@keyframes msScanPulse{
+  0%{box-shadow:0 0 0 0 rgba(0,137,123,0)}
+  15%{box-shadow:0 0 0 4px rgba(0,137,123,.38)}
+  100%{box-shadow:0 0 0 0 rgba(0,137,123,0)}}
+#pane-scan.ms-focus{border-radius:14px;animation:msScanPulse 1.9s ease-out 1}
+@media (prefers-reduced-motion:reduce){ #pane-scan.ms-focus{animation:none} }
 </style>
 </head>
 <body>
@@ -202,6 +234,16 @@ body.ms-locked{overflow:hidden}
     allein aufgrund dieser Angaben. Fragen Sie bei Wechselwirkungen Ihre Ärztin/Ihren Arzt oder Ihre Apotheke.
   </div>
 
+  <!-- Einmaliger Hinweis: MediScan wie eine App auf den Startbildschirm legen.
+       Standardmäßig ausgeblendet – erscheint nur, wenn die App installierbar und
+       noch nicht installiert ist (per Inline-Skript am Seitenende gesteuert). -->
+  <div id="ms-install" role="note" aria-live="polite">
+    <span class="ii" aria-hidden="true">📲</span>
+    <span class="it" id="ms-install-txt"></span>
+    <button type="button" class="ibtn" id="ms-install-go" hidden>Installieren</button>
+    <button type="button" class="ix" id="ms-install-x" aria-label="Hinweis schließen" title="Schließen">×</button>
+  </div>
+
   <!-- Eingabe -->
   <section class="card">
     <h2>1. Medikamente erfassen</h2>
@@ -322,6 +364,98 @@ body.ms-locked{overflow:hidden}
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("sw.js").catch(function () {});
   });
+})();
+</script>
+
+<script>
+/* ============================================================================
+   Startbildschirm-„App-Button": (1) beim Öffnen direkt zum Scan springen,
+   (2) das Ablegen als App auf dem Handy anbieten/erklären.
+   Bewusst INLINE in app.html gehalten (nicht in der gecachten ms-app.js), damit
+   diese Logik nach einem Deploy sofort mit dem frischen HTML kommt und nicht an
+   der SW-Cache-Kohärenz-Falle (neues HTML + alte JS) hängen bleibt.
+   ========================================================================== */
+(function () {
+  "use strict";
+  var d = document;
+
+  /* ---- 1) Direkt auf den Scan-Bereich springen ----
+     Öffnet der Nutzer die App über die Startbildschirm-Verknüpfung oder die
+     „Scannen"-Verknüpfung (start_url bzw. shortcut = app.html?go=scan), zeigen
+     wir den Foto-Scan-Bereich sofort an und heben ihn kurz hervor. Wir starten
+     KEINE Kamera automatisch – die braucht eine echte Nutzergeste (Tipp auf
+     „Foto aufnehmen"); ein Auto-Start würde von Android/iOS ohnehin blockiert. */
+  function wantsScan() {
+    try { var u = new URL(location.href); if ((u.searchParams.get("go") || "").toLowerCase() === "scan") return true; } catch (e) {}
+    return (location.hash || "").toLowerCase() === "#scan";
+  }
+  function focusScan() {
+    var el = d.getElementById("pane-scan"); if (!el) return;
+    try { el.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    catch (e) { try { el.scrollIntoView(); } catch (x) {} }
+    el.classList.remove("ms-focus"); void el.offsetWidth; el.classList.add("ms-focus");
+    /* ?go=scan wieder aus der Adresse nehmen, damit ein Reload/Teilen normal startet. */
+    try { var u = new URL(location.href); if (u.searchParams.has("go")) { u.searchParams.delete("go"); history.replaceState(null, "", u.pathname + u.search + u.hash); } } catch (e) {}
+  }
+  if (wantsScan()) {
+    var run = function () { setTimeout(focusScan, 350); }; /* dem Gate einen Moment lassen */
+    if (d.readyState !== "loading") run(); else d.addEventListener("DOMContentLoaded", run);
+  }
+
+  /* ---- 2) „Als App installieren"-Hilfe ---- */
+  var box = d.getElementById("ms-install");
+  if (!box) return;
+  var txt = d.getElementById("ms-install-txt");
+  var goBtn = d.getElementById("ms-install-go");
+  var xBtn = d.getElementById("ms-install-x");
+  var DISMISS = "ms.install.hidden";
+
+  function dismissed() { try { return localStorage.getItem(DISMISS) === "1"; } catch (e) { return false; } }
+  function hide() { box.style.display = "none"; }
+  function hideForever() { try { localStorage.setItem(DISMISS, "1"); } catch (e) {} hide(); }
+  function show() { box.style.display = "flex"; }
+
+  /* Läuft die App bereits als installierte App? Dann nie fragen. */
+  function isStandalone() {
+    return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+  }
+  /* iOS/iPadOS: kein Prompt-API -> nur Anleitung. (iPadOS tarnt sich als Mac.) */
+  function isIOS() {
+    var ua = navigator.userAgent || "";
+    return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in d);
+  }
+
+  if (isStandalone() || window.__msInstalled || dismissed()) { return; }
+
+  function offerChromium() {
+    if (!window.__msDeferredInstall) return;
+    txt.innerHTML = '<b>MediScan als App installieren</b> – dann liegt sie wie eine App auf Ihrem Startbildschirm und öffnet mit einem Tipp direkt den Scan.';
+    goBtn.hidden = false;
+    show();
+  }
+
+  /* Android/Chromium: echtes Installations-Prompt anbieten (auch bei spätem Event). */
+  if (window.__msDeferredInstall) offerChromium();
+  window.addEventListener("ms-installable", offerChromium);
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); window.__msDeferredInstall = e; offerChromium(); });
+  window.addEventListener("appinstalled", function () { window.__msInstalled = true; hideForever(); });
+
+  goBtn.addEventListener("click", function () {
+    var dp = window.__msDeferredInstall; if (!dp) return;
+    try { dp.prompt(); } catch (e) {}
+    var done = function () { window.__msDeferredInstall = null; hideForever(); };
+    if (dp.userChoice && dp.userChoice.then) dp.userChoice.then(done, done); else done();
+  });
+
+  /* iOS Safari: kurze Schritt-für-Schritt-Anleitung statt Button. */
+  if (isIOS()) {
+    txt.innerHTML = '<b>Auf den Startbildschirm legen:</b> unten auf das Teilen-Symbol '
+      + '<span aria-hidden="true">⎋</span> tippen, dann „Zum Home-Bildschirm". So öffnet MediScan wie eine App – direkt beim Scan.';
+    goBtn.hidden = true;
+    show();
+  }
+
+  xBtn.addEventListener("click", hideForever);
 })();
 </script>
 </body>
