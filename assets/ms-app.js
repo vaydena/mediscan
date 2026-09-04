@@ -357,21 +357,108 @@
   }
   function showOCR(on) { el("ocrbox").hidden = !on; }
   function setBar(pct, msg) { el("ocrbar").style.width = pct + "%"; if (msg) el("ocrmsg").textContent = msg; }
+  // Zeigt (bei Nichttreffer) den tatsächlich erkannten Rohtext an, damit der
+  // Nutzer sieht, was gelesen wurde, und gezielt über die Suche nachhelfen kann.
+  function showRaw(text) {
+    var box = el("ocrraw"); if (!box) return;
+    var clean = String(text || "").replace(/\s+/g, " ").trim();
+    if (!clean) { box.hidden = true; box.textContent = ""; return; }
+    if (clean.length > 180) clean = clean.slice(0, 180) + " …";
+    box.textContent = "Erkannter Text: " + clean;
+    box.hidden = false;
+  }
+
+  // ---- Bild fürs OCR aufbereiten --------------------------------------------
+  // Handy-Fotos sind riesig (12 MP+), oft farbstichig und ungleich beleuchtet –
+  // suboptimal für Tesseract. Wir skalieren auf eine sinnvolle Kantenlänge
+  // herunter, wandeln in Graustufen und spreizen den Kontrast auf das 2.–98.
+  // Perzentil (robust gegen Glanzlichter auf Blister/Folie). Das hebt die
+  // Trefferquote auf echten Medikamentenschachteln deutlich. Fail-safe: schlägt
+  // ein Schritt fehl (kein Canvas o. Ä.), kommt die Originaldatei unverändert
+  // zurück – der Scan bricht nie an der Aufbereitung.
+  function loadDrawable(file) {
+    if (typeof createImageBitmap === "function") {
+      return createImageBitmap(file).then(function (bmp) {
+        return { img: bmp, cleanup: function () { try { bmp.close && bmp.close(); } catch (e) {} } };
+      }).catch(function () { return loadImgEl(file); });
+    }
+    return loadImgEl(file);
+  }
+  function loadImgEl(file) {
+    return new Promise(function (res, rej) {
+      var u = URL.createObjectURL(file), im = new Image();
+      im.onload = function () { res({ img: im, cleanup: function () { try { URL.revokeObjectURL(u); } catch (e) {} } }); };
+      im.onerror = function () { try { URL.revokeObjectURL(u); } catch (e) {} rej(new Error("img")); };
+      im.src = u;
+    });
+  }
+  async function preprocessForOCR(file) {
+    var dr = null;
+    try {
+      dr = await loadDrawable(file);
+      var img = dr.img, W = img.width || img.naturalWidth, H = img.height || img.naturalHeight;
+      if (!W || !H) return file;
+      var LONG = 1800, scale = Math.min(1, LONG / Math.max(W, H));
+      var w = Math.max(1, Math.round(W * scale)), h = Math.max(1, Math.round(H * scale));
+      var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+      var ctx = cv.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return file;
+      ctx.drawImage(img, 0, 0, w, h);
+      dr.cleanup(); dr = null;
+      var imgData = ctx.getImageData(0, 0, w, h), d = imgData.data, n = d.length, i;
+      // 1) Graustufe (Luma) + Histogramm
+      var gray = new Uint8ClampedArray(n >> 2), hist = new Uint32Array(256), p = 0, g;
+      for (i = 0; i < n; i += 4) {
+        g = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+        gray[p++] = g; hist[g]++;
+      }
+      // 2) Kontrast auf 2.–98. Perzentil strecken
+      var total = gray.length, lo = 0, hi = 255, acc = 0;
+      for (i = 0; i < 256; i++) { acc += hist[i]; if (acc >= total * 0.02) { lo = i; break; } }
+      acc = 0;
+      for (i = 0; i < 256; i++) { acc += hist[i]; if (acc >= total * 0.98) { hi = i; break; } }
+      if (hi <= lo) { lo = 0; hi = 255; }
+      var span = hi - lo, lut = new Uint8ClampedArray(256);
+      for (i = 0; i < 256; i++) lut[i] = i <= lo ? 0 : i >= hi ? 255 : Math.round((i - lo) * 255 / span);
+      p = 0;
+      for (i = 0; i < n; i += 4) { var v = lut[gray[p++]]; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+      ctx.putImageData(imgData, 0, 0);
+      return cv;
+    } catch (e) {
+      return file;
+    } finally {
+      if (dr) dr.cleanup();
+    }
+  }
 
   async function runOCR(file) {
     var thumb = el("thumb");
     try { thumb.src = URL.createObjectURL(file); thumb.hidden = false; } catch (e) {}
-    showOCR(true); setBar(3, "Sprachpaket wird geladen …");
+    showRaw("");
+    showOCR(true); setBar(3, "Bild wird aufbereitet …");
     var worker = null;
     try {
+      var input = await preprocessForOCR(file);
+      setBar(6, "Sprachpaket wird geladen …");
       await loadTesseract();
-      setBar(8, "Texterkennung startet …");
+      setBar(10, "Texterkennung startet …");
       worker = await window.Tesseract.createWorker("deu", 1, {
         logger: function (m) {
-          if (m.status === "recognizing text") setBar(10 + Math.round(m.progress * 88), "Text wird erkannt … " + Math.round(m.progress * 100) + "%");
+          if (m.status === "recognizing text") setBar(12 + Math.round(m.progress * 86), "Text wird erkannt … " + Math.round(m.progress * 100) + "%");
         }
       });
-      var out = await worker.recognize(file);
+      // Wörterbuch AUS: verhindert, dass Tesseract Wirkstoff-/Markennamen zu
+      // deutschen Wörterbuchwörtern „korrigiert" (z. B. Ibuprofen). Layout: ein
+      // zusammenhängender Textblock (Packungsaufdruck), Wort-Zwischenräume erhalten.
+      try {
+        await worker.setParameters({
+          tessedit_pageseg_mode: "6",
+          load_system_dawg: "0",
+          load_freq_dawg: "0",
+          preserve_interword_spaces: "1"
+        });
+      } catch (e) { /* ältere Tesseract-Version ohne setParameters → Default */ }
+      var out = await worker.recognize(input);
       await worker.terminate(); worker = null;
       setBar(100, "Abgleich mit Datenbank …");
       var text = (out && out.data && out.data.text) || "";
@@ -384,9 +471,12 @@
       toAdd.forEach(function (id) { if (selected.indexOf(id) === -1 && MS.medById(id)) { selected.push(id); added++; } });
       if (added) { lsSet(LS_SEL, selected); renderChips(); maybeRerun(); }
       setTimeout(function () { showOCR(false); }, 700);
-      if (added) toast(added + " Medikament" + (added > 1 ? "e" : "") + " erkannt und hinzugefügt.");
-      else if (found.length) toast("Erkannte Medikamente sind bereits in der Liste.");
-      else toast("Kein bekanntes Medikament erkannt – bitte über die Suche hinzufügen.");
+      if (added) { showRaw(""); toast(added + " Medikament" + (added > 1 ? "e" : "") + " erkannt und hinzugefügt."); }
+      else if (found.length) { showRaw(""); toast("Erkannte Medikamente sind bereits in der Liste."); }
+      else {
+        showRaw(text);   // nichts erkannt → gelesenen Text zeigen, damit man gezielt nachsuchen kann
+        toast("Kein bekanntes Medikament erkannt – bitte über die Suche prüfen.");
+      }
       // zurück zur manuellen Ansicht, damit man prüfen/ergänzen kann
       setTab("manual");
     } catch (e) {

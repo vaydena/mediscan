@@ -164,8 +164,15 @@ window.MediScan = (function () {
   function detect(ocrText) {
     if (!IDX) return [];
     var full = norm(ocrText);
-    // Tokens für Fuzzy
-    var rawTokens = full.split(" ").filter(function (w) { return w.length >= 3; });
+    // „Verklebte" Fassung ohne Leerzeichen/Bindestriche: fängt Handelsnamen, die
+    // die Kamera-OCR getrennt liest (z. B. „ben u ron" statt „ben-u-ron", „beloc
+    // zok"). Beide sind schon genormt → nur Space/Bindestrich müssen fallen.
+    var squish = full.replace(/[ \-]/g, "");
+    // Tokens für Fuzzy – reine Ziffernfolgen (Dosierungen wie „400", „1000") raus,
+    // sie sind kein Wirkstoffname und würden das Fuzzy nur verrauschen.
+    var rawTokens = full.split(" ").filter(function (w) {
+      return w.length >= 3 && !/^\d+$/.test(w);
+    });
     var tokens = Array.from(new Set(rawTokens));
     var bestByIng = {};   // ing -> {medId,term,score,syn}
 
@@ -175,6 +182,12 @@ window.MediScan = (function () {
       // 1) Substring des Gesamttextes (stark)
       if (t.length >= 4 && full.indexOf(t) !== -1) {
         score = 100 + t.length;
+      } else if (t.length >= 6 && t.replace(/[ \-]/g, "").length >= 6 &&
+                 squish.indexOf(t.replace(/[ \-]/g, "")) !== -1) {
+        // 1b) Trennzeichen-toleranter Substring (mehrwortige / getrennt gedruckte
+        //     Namen). Nur ab 6 Zeichen, damit keine kurzen Namen zufällig in
+        //     langen Wörtern „aufgehen".
+        score = 96 + t.length;
       } else {
         // 2) Fuzzy gegen einzelne Tokens
         for (var j = 0; j < tokens.length; j++) {

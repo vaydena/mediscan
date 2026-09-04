@@ -49,6 +49,18 @@ function ok(name, cond, extra) {
   ok("synonym: Beloc -> Metoprolol", si.includes("Metoprolol"), JSON.stringify(si));
   ok("synonym: Voltaren -> Diclofenac", si.includes("Diclofenac"), JSON.stringify(si));
 
+  // --- Trennzeichen-toleranter Abgleich (Kamera-OCR spaltet Namen oft mitten
+  //     im Wort oder mit fremden Trennzeichen; ohne diesen Weg bliebe der Treffer
+  //     leer, da die kurzen Bruchstücke einzeln nicht fuzzy-matchen) ---
+  let sp1 = MS.detect("parace tamol 500").map(x => x.ingredient);
+  ok("gespalten: 'parace tamol' -> Paracetamol", sp1.includes("Paracetamol"), JSON.stringify(sp1));
+  let sp2 = MS.detect("metfor min 1000").map(x => x.ingredient);
+  ok("gespalten: 'metfor min' -> Metformin", sp2.includes("Metformin"), JSON.stringify(sp2));
+  let sp3 = MS.detect("panto prazol").map(x => x.ingredient);
+  ok("gespalten: 'panto prazol' -> Pantoprazol", sp3.includes("Pantoprazol"), JSON.stringify(sp3));
+  // Dosisangaben (reine Ziffern) dürfen nichts erkennen
+  ok("reine Ziffern erkennen kein Medikament", MS.detect("400 100 1000 20 5").length === 0, JSON.stringify(MS.detect("400 100 1000 20 5").map(x=>x.ingredient)));
+
   // --- Autocomplete (neue „pick"-Form: {ids,name,sub,category}) ---
   let q = MS.search("simva");
   ok("suche 'simva' findet Simvastatin", q.some(m => /simvastatin/i.test(m.sub)), q.map(m=>m.name).join(","));

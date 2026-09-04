@@ -99,6 +99,7 @@ jobs:
                      -not -name 'deploy-local.log' \
                      -not -name 'README.md' \
                      -not -name '.gitignore' \
+                     -not -name '*.bak*' \
                    | sed 's|^\./||' | sort)
           n=${#FILES[@]}; echo "Dateien: $n"
           ftp() {

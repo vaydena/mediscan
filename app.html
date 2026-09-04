@@ -249,6 +249,9 @@ body.ms-locked{overflow:hidden}
         <div class="progress"><i id="ocrbar"></i></div>
         <div class="small muted" id="ocrmsg">Texterkennung …</div>
       </div>
+      <!-- Zeigt bei Nichttreffer den tatsächlich gelesenen Text an (Hilfe zur
+           gezielten manuellen Suche). -->
+      <div id="ocrraw" class="small muted" hidden style="margin-top:8px;padding:8px 10px;border:1px solid var(--line,#d9e2ec);border-radius:8px;background:rgba(0,0,0,.03);word-break:break-word"></div>
 
       <!-- Notnagel ohne Kamera: PZN von Hand eintippen -->
       <details class="ocrdetails">
