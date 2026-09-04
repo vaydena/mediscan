@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>MediScan – Medikamenten-Wechselwirkungen prüfen</title>
 <meta name="description" content="Medikamente scannen oder eingeben und in Sekunden auf Wechselwirkungen und individuelle Patientenrisiken prüfen. Einmalig 99 € freischalten – keine Folgekosten, offline nutzbar. Kein Ersatz für ärztliche Beratung.">
-<meta name="theme-color" content="#00695c">
+<meta name="theme-color" content="#0b1a24">
 <meta name="color-scheme" content="light">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,188 +14,473 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="stylesheet" href="assets/mediscan.css">
 <meta property="og:type" content="website">
 <meta property="og:title" content="MediScan – Wechselwirkungen prüfen">
 <meta property="og:description" content="Medikamente scannen oder eingeben und auf Wechselwirkungen sowie Patientenrisiken prüfen. Offline nutzbar.">
 <meta property="og:image" content="assets/icons/icon-512.png">
+<style>
+/* ============================================================
+   MediScan — Startseite im Vaydena-Design (Petrol/Gold/Navy).
+   Bewusst helles, einthemiges Design (color-scheme: light),
+   keine externen Assets, Systemfonts -> offline-tauglich (PWA).
+   ============================================================ */
+:root{
+  color-scheme: light;
+  --bg:#f4f7f8; --bg-2:#eaf1f2; --surface:#ffffff;
+  --ink:#0f2830; --ink-2:#264a54; --muted:#5c7883; --line:#dbe6e9;
+  --primary:#0e6f6b; --primary-d:#0a5350; --primary-l:#e3f1ef;
+  --cyan:#0a9bb0;
+  --gold:#e0a423; --gold-d:#9c6a0d; --gold-l:#fbeecd;
+  --navy:#0b1a24; --navy-2:#122b39; --navy-ink:#e6f1f3; --navy-muted:#93b2bb;
+  --ok:#1f9d6b; --ok-l:#e4f5ec;
+  --sev-hi:#c8402f; --sev-hi-l:#fbe6e2; --sev-mid:#c47d12; --sev-mid-l:#fbeecd;
+  --radius:16px; --radius-s:11px;
+  --shadow-s:0 1px 2px rgba(11,26,36,.06),0 2px 8px rgba(11,26,36,.05);
+  --shadow-m:0 8px 28px rgba(11,26,36,.10);
+  --shadow-l:0 18px 50px rgba(11,26,36,.16);
+  --maxw:1120px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,Menlo,Consolas,"Segoe UI Mono",monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.55;font-size:16.5px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{line-height:1.15;margin:0 0 .5em;color:var(--ink);text-wrap:balance;letter-spacing:-.02em}
+h1{font-size:clamp(2rem,4.2vw,3.05rem);font-weight:800}
+h2{font-size:clamp(1.55rem,3vw,2.25rem);font-weight:800}
+h3{font-size:1.2rem;font-weight:700}
+p{margin:0 0 1em}
+a{color:var(--primary-d);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:3px solid var(--cyan);outline-offset:2px;border-radius:4px}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+.center{text-align:center}
+.muted{color:var(--muted)}
+.eyebrow{font-size:.8rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--primary);margin:0 0 12px}
+.eyebrow.gold{color:var(--gold-d)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:9px;font-family:inherit;cursor:pointer;font-weight:700;font-size:1rem;padding:13px 22px;border-radius:12px;border:2px solid transparent;text-decoration:none;transition:transform .12s ease,box-shadow .12s ease,background .12s;white-space:nowrap}
+.btn:hover{text-decoration:none;transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.primary{background:var(--primary);color:#fff;box-shadow:var(--shadow-s)}
+.btn.primary:hover{background:var(--primary-d);box-shadow:var(--shadow-m)}
+.btn.gold{background:var(--gold);color:#3a2703;box-shadow:0 6px 18px rgba(224,164,35,.35)}
+.btn.gold:hover{background:#eeb130}
+.btn.ghost{background:transparent;color:var(--primary-d);border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--primary);background:var(--primary-l)}
+.btn.ghost.on-navy{color:#fff;border-color:rgba(255,255,255,.28)}
+.btn.ghost.on-navy:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.5)}
+.btn.lg{padding:16px 30px;font-size:1.08rem}
+.btn.sm{padding:9px 15px;font-size:.9rem;border-radius:10px}
+.btn.block{width:100%;justify-content:center}
+
+/* Header */
+header.site{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.86);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:14px;height:68px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:1.12rem;color:var(--ink);letter-spacing:-.02em}
+.brand:hover{text-decoration:none}
+.brand .logo{width:34px;height:34px;flex:0 0 auto}
+.brand small{display:block;font-size:.62rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--primary);margin-top:-2px}
+.nav .spacer{flex:1}
+.nav-links{display:flex;align-items:center;gap:4px}
+.nav-links a{padding:9px 13px;border-radius:10px;color:var(--ink-2);font-weight:600;font-size:.96rem}
+.nav-links a:hover{background:var(--primary-l);color:var(--primary-d);text-decoration:none}
+.nav-cta{display:flex;align-items:center;gap:8px}
+.nav-toggle{display:none;background:none;border:0;cursor:pointer;padding:8px;color:var(--ink)}
+.nav-toggle svg{width:26px;height:26px}
+
+/* Hero */
+.hero{position:relative;background:radial-gradient(1100px 520px at 78% -8%,#1c4a4a 0%,transparent 60%),linear-gradient(160deg,var(--navy) 0%,var(--navy-2) 100%);color:var(--navy-ink);overflow:hidden}
+.hero::after{content:"";position:absolute;right:-90px;top:-90px;width:360px;height:360px;background:radial-gradient(circle,rgba(224,164,35,.22),transparent 68%);pointer-events:none}
+.hero .wrap{position:relative;padding:70px 22px 80px;display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center}
+.hero h1{color:#fff}
+.hero h1 .hl{color:var(--gold)}
+.hero .lead{font-size:1.16rem;color:var(--navy-ink);opacity:.9;max-width:34em;margin-bottom:26px}
+.hero .cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.hero .trustline{display:flex;gap:18px;flex-wrap:wrap;color:var(--navy-muted);font-size:.9rem;font-weight:600}
+.hero .trustline span{display:flex;align-items:center;gap:7px}
+.hero .trustline svg{width:17px;height:17px;color:var(--gold)}
+
+/* Hero-Visual: Smartphone mit Scan-Animation */
+.hero-visual{position:relative;display:flex;justify-content:center;align-items:center;min-height:560px}
+.phone{width:296px;background:#0b1a24;border-radius:40px;padding:12px;position:relative;box-shadow:0 34px 70px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.12) inset}
+.phone::before{content:"";position:absolute;top:12px;left:50%;transform:translateX(-50%);width:104px;height:24px;background:#0b1a24;border-radius:0 0 16px 16px;z-index:2}
+.phone-screen{background:#f4f7f8;border-radius:30px;overflow:hidden;min-height:560px;display:flex;flex-direction:column;color:var(--ink)}
+.ph-top{display:flex;justify-content:space-between;align-items:center;padding:36px 16px 10px;font-weight:800;font-size:13px}
+.ph-top .st{font-weight:700;font-size:11px;padding:3px 9px;border-radius:999px;background:var(--primary-l);color:var(--primary-d);display:flex;gap:6px;align-items:center}
+.ph-top .st i{width:7px;height:7px;border-radius:50%;background:var(--primary);display:inline-block;animation:pulse 1.6s infinite}
+.ph-cam{margin:4px 14px;background:linear-gradient(160deg,#1d3742,#0e222b);border-radius:16px;height:170px;position:relative;overflow:hidden;display:grid;place-items:center}
+.ph-frame{position:absolute;inset:22px 30px;border:2px solid rgba(255,255,255,.5);border-radius:12px}
+.ph-frame::before,.ph-frame::after{content:"";position:absolute;width:22px;height:22px;border:3px solid var(--gold)}
+.ph-frame::before{top:-3px;left:-3px;border-right:0;border-bottom:0;border-radius:6px 0 0 0}
+.ph-frame::after{bottom:-3px;right:-3px;border-left:0;border-top:0;border-radius:0 0 6px 0}
+.ph-pack{width:158px;background:#fff;border-radius:7px;padding:9px 11px 7px;display:flex;flex-direction:column;align-items:center;gap:5px;box-shadow:0 6px 16px rgba(0,0,0,.28)}
+.ph-pack .pk-name{font-size:11px;font-weight:800;color:#0b1a24;align-self:flex-start}
+.ph-bars{width:100%;height:34px;background:repeating-linear-gradient(90deg,#0b1a24 0 2px,#fff 2px 3px,#0b1a24 3px 4px,#fff 4px 7px,#0b1a24 7px 10px,#fff 10px 11px,#0b1a24 11px 12px,#fff 12px 15px,#0b1a24 15px 17px,#fff 17px 18px)}
+.ph-pack small{font-size:8.5px;letter-spacing:.14em;color:#5c7883;font-weight:700;font-family:var(--mono);align-self:flex-start}
+.ph-laser{position:absolute;left:30px;right:30px;height:2px;background:var(--gold);box-shadow:0 0 12px 2px var(--gold);animation:laser 2.4s ease-in-out infinite}
+@keyframes laser{0%,100%{top:34px}50%{top:132px}}
+.ph-hit{margin:12px 14px 0;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow-s);font-size:13px;position:relative;overflow:hidden}
+.ph-hit::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ok)}
+.ph-hit b{display:block;font-size:10.5px;color:var(--ok);letter-spacing:.1em;font-family:var(--mono);font-weight:700}
+.ph-hit span{display:block;font-weight:800;font-size:13.5px;margin:2px 0}
+.ph-hit small{color:var(--muted);font-size:11.5px}
+.ph-res{margin:10px 14px 0;display:flex;flex-direction:column;gap:8px}
+.ph-row{background:#fff;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:8px 11px}
+.ph-row .sev{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;display:inline-block;margin-bottom:3px}
+.ph-row b{display:block;font-size:12.5px;font-weight:800;color:var(--ink)}
+.ph-row small{color:var(--muted);font-size:11px}
+.ph-row.hi{border-left-color:var(--sev-hi)} .ph-row.hi .sev{background:var(--sev-hi-l);color:var(--sev-hi)}
+.ph-row.mid{border-left-color:var(--sev-mid)} .ph-row.mid .sev{background:var(--sev-mid-l);color:var(--gold-d)}
+.ph-queue{margin:auto 14px 16px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--primary-d);background:var(--primary-l);border-radius:10px;padding:9px 12px;font-weight:700}
+.ph-queue svg{width:14px;height:14px;flex:0 0 auto}
+@keyframes pulse{50%{opacity:.35}}
+.hero-visual .tag{position:absolute;background:#fff;color:var(--ink);border-radius:12px;padding:10px 14px;font-weight:700;font-size:.84rem;box-shadow:var(--shadow-m);display:flex;gap:8px;align-items:center;white-space:nowrap}
+.hero-visual .tag svg{width:18px;height:18px;color:var(--primary);flex:0 0 auto}
+.tag.t1{left:-6px;top:64px}.tag.t2{right:-6px;bottom:84px}
+@media (max-width:1000px){.hero-visual .tag{display:none}}
+
+/* Sections */
+section{padding:70px 0}
+section.tight{padding:52px 0}
+.sec-head{max-width:40em;margin:0 auto 44px;text-align:center}
+.sec-head p{font-size:1.08rem;color:var(--muted);margin:0}
+.alt{background:var(--bg-2)}
+.navy-sec{background:linear-gradient(160deg,var(--navy),var(--navy-2));color:var(--navy-ink)}
+.navy-sec h2{color:#fff}
+.navy-sec .sec-head p{color:var(--navy-muted)}
+
+/* Disclaimer-Bar */
+.disband{background:#fff;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:var(--radius-s);padding:16px 20px;margin:-34px auto 0;max-width:var(--maxw);position:relative;box-shadow:var(--shadow-s);font-size:.95rem;color:var(--ink-2)}
+.disband b{color:var(--ink)}
+.disband-wrap{padding:34px 22px 0}
+
+/* Zielgruppen */
+.audience{display:flex;flex-wrap:wrap;justify-content:center;gap:12px 14px}
+.audience .chip{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:10px 18px;font-weight:700;font-size:.95rem;color:var(--ink-2);box-shadow:var(--shadow-s)}
+.audience .chip svg{width:19px;height:19px;color:var(--primary);flex:0 0 auto}
+
+/* Feature-Grid */
+.grid{display:grid;gap:22px}
+.g3{grid-template-columns:repeat(3,1fr)}
+.feature{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px;box-shadow:var(--shadow-s)}
+.feature .ic{width:46px;height:46px;border-radius:12px;background:var(--primary-l);color:var(--primary-d);display:grid;place-items:center;margin-bottom:16px}
+.feature .ic svg{width:24px;height:24px}
+.feature.gold .ic{background:var(--gold-l);color:var(--gold-d)}
+.feature h3{margin-bottom:7px}
+.feature p{margin:0;color:var(--muted);font-size:.97rem}
+
+/* Vertrauens-Säulen (navy) */
+.ofx{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:var(--radius);padding:26px}
+.ofx .k{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--gold);color:var(--navy);margin-bottom:14px}
+.ofx .k svg{width:23px;height:23px}
+.ofx h3{color:#fff}
+.ofx p{color:var(--navy-muted);margin:0;font-size:.96rem}
+.technote{margin:28px auto 0;text-align:center;color:var(--navy-muted);font-size:.9rem;max-width:54em}
+
+/* Ablauf */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.step{position:relative;padding-top:8px}
+.step .n{width:44px;height:44px;border-radius:13px;background:var(--primary);color:#fff;font-weight:800;font-size:1.15rem;display:grid;place-items:center;margin-bottom:14px;box-shadow:var(--shadow-s)}
+.step h3{font-size:1.08rem;margin-bottom:6px}
+.step p{margin:0;color:var(--muted);font-size:.95rem}
+
+/* Preis (Einzel-Angebot) */
+.offer{max-width:560px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:34px 30px;box-shadow:0 0 0 3px var(--primary-l),var(--shadow-m);text-align:center;position:relative}
+.offer .badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;font-size:.74rem;font-weight:800;letter-spacing:.05em;padding:6px 14px;border-radius:999px;text-transform:uppercase}
+.offer .price{font-size:3rem;font-weight:800;color:var(--primary-d);letter-spacing:-.03em;line-height:1;margin-top:6px}
+.offer .per{color:var(--muted);font-size:.95rem;font-weight:600;margin-bottom:20px}
+.offer ul{list-style:none;padding:0;margin:0 0 24px;text-align:left;display:inline-block}
+.offer li{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:.96rem;color:var(--ink-2)}
+.offer li svg{width:18px;height:18px;color:var(--ok);flex:0 0 auto;margin-top:3px}
+.offer .cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.pricenote{max-width:46em;margin:24px auto 0;text-align:center;color:var(--muted);font-size:.9rem}
+
+/* FAQ */
+.faq{max-width:760px;margin:0 auto}
+.faq details{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-s);margin-bottom:12px;padding:2px 20px;box-shadow:var(--shadow-s)}
+.faq summary{cursor:pointer;font-weight:700;color:var(--ink);padding:16px 0;list-style:none;display:flex;justify-content:space-between;gap:14px;align-items:center}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary .chev{transition:transform .2s;color:var(--primary);flex:0 0 auto}
+.faq details[open] summary .chev{transform:rotate(180deg)}
+.faq details p{color:var(--muted);margin:0;padding:0 0 18px;font-size:.97rem}
+
+/* CTA-Band */
+.ctaband{background:linear-gradient(160deg,var(--primary-d),var(--primary));color:#fff;border-radius:22px;padding:52px 44px;text-align:center;box-shadow:var(--shadow-m);position:relative;overflow:hidden}
+.ctaband::after{content:"";position:absolute;right:-60px;bottom:-80px;width:280px;height:280px;background:radial-gradient(circle,rgba(224,164,35,.3),transparent 66%)}
+.ctaband h2{color:#fff;position:relative}
+.ctaband p{color:rgba(255,255,255,.9);max-width:34em;margin:0 auto 26px;position:relative;font-size:1.1rem}
+.ctaband .btn{position:relative}
+
+/* Footer */
+footer.site{background:var(--navy);color:var(--navy-muted);padding:56px 0 30px;font-size:.94rem}
+footer.site .cols{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:32px;margin-bottom:34px}
+footer.site h4{color:#fff;font-size:.82rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px}
+footer.site a{color:var(--navy-muted);display:block;padding:5px 0}
+footer.site a:hover{color:#fff}
+footer.site .brand{color:#fff;margin-bottom:12px}
+footer.site .brand small{color:var(--primary)}
+footer.site p{font-size:.9rem;color:var(--navy-muted)}
+footer.site .fbot{border-top:1px solid rgba(255,255,255,.1);padding-top:22px;color:var(--navy-muted);font-size:.85rem}
+
+/* Mobile-Menü */
+.mobile-menu{display:none;background:var(--surface);border-bottom:1px solid var(--line);padding:12px 22px}
+.mobile-menu a{display:block;padding:12px 6px;font-weight:600;color:var(--ink-2);border-bottom:1px solid var(--line)}
+.mobile-menu a:last-child{border-bottom:0}
+
+/* Responsive */
+@media (max-width:900px){
+  .hero .wrap{grid-template-columns:1fr;gap:34px;padding:52px 22px 60px}
+  .hero-visual{min-height:0}
+  .g3{grid-template-columns:repeat(2,1fr)}
+  .steps{grid-template-columns:1fr}
+  footer.site .cols{grid-template-columns:1fr 1fr}
+}
+@media (max-width:620px){
+  .nav-links,.nav-cta .btn.ghost{display:none}
+  .nav-toggle{display:block}
+  .nav.open+.mobile-menu{display:block}
+  .g3{grid-template-columns:1fr}
+  footer.site .cols{grid-template-columns:1fr}
+  .ctaband{padding:38px 24px}
+  section{padding:52px 0}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .ph-laser,.ph-top .st i{animation:none}
+  .ph-laser{top:82px}
+}
+</style>
 </head>
 <body>
-<header class="topbar">
-  <div class="wrap">
-    <a class="brand" href="index.html" aria-label="MediScan Startseite">
-      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
-        <rect x="1.5" y="1.5" width="37" height="37" rx="9" fill="#004d40"/>
-        <rect x="8" y="16.5" width="24" height="7.6" rx="3.8" fill="#fff"/>
-        <rect x="20" y="16.5" width="12" height="7.6" rx="3.8" fill="#00acc1"/>
-        <rect x="19.2" y="16.5" width="1.6" height="7.6" fill="#004d40"/>
-        <rect x="5.5" y="19.1" width="29" height="2.2" rx="1.1" fill="#00acc1"/>
-      </svg>
-      <span><b>MediScan</b><small>Wechselwirkungs-Check</small></span>
-    </a>
-    <span class="sp"></span>
-    <a class="nav" href="app.html">Freischalten</a>
-    <a class="nav" href="kaufen.html">Kaufen</a>
-  </div>
-</header>
 
-<section class="hero">
-  <div class="wrap">
-    <h1>Medikamente sicher kombinieren.</h1>
-    <p class="lead">Geben Sie Ihre Medikamente ein oder scannen Sie die Verpackung – MediScan prüft
-      in Sekunden auf <b>Wechselwirkungen</b> und <b>individuelle Risiken</b> und erstellt auf
-      Wunsch ein PDF für das Arzt- oder Apothekengespräch.</p>
-    <div class="cta">
-      <a class="btn lg cyan" href="kaufen.html">Freischalten · 99&nbsp;€ einmalig</a>
-      <a class="btn lg ghost" href="app.html">Ich habe einen Code</a>
+<header class="site"><div class="wrap">
+  <div class="nav">
+    <a class="brand" href="index.html" aria-label="MediScan – Startseite">
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="37" rx="9" fill="#0e6f6b"/><rect x="8" y="16.5" width="24" height="7.6" rx="3.8" fill="#fff"/><rect x="20" y="16.5" width="12" height="7.6" rx="3.8" fill="#e0a423"/><rect x="19.2" y="16.5" width="1.6" height="7.6" fill="#0e6f6b"/><rect x="5.5" y="19.1" width="29" height="2.2" rx="1.1" fill="#0b1a24"/></svg>
+      <span>MediScan<small>Wechselwirkungs-Check</small></span>
+    </a>
+    <div class="spacer"></div>
+    <nav class="nav-links" aria-label="Hauptnavigation">
+      <a href="#funktionen">Funktionen</a>
+      <a href="#sicher">Sicherheit</a>
+      <a href="#ablauf">So geht's</a>
+      <a href="#preis">Preis</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn ghost sm" href="app.html">Ich habe einen Code</a>
+      <a class="btn gold sm" href="kaufen.html">Freischalten</a>
     </div>
-    <p style="margin-top:16px;font-size:.92rem;opacity:.85">Einmalzahlung · keine Folgekosten · inkl. Updates &amp; Support · alle Gesundheitsdaten bleiben auf Ihrem Gerät</p>
+    <button class="nav-toggle" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  </div>
+  <div class="mobile-menu">
+    <a href="#funktionen">Funktionen</a>
+    <a href="#sicher">Sicherheit</a>
+    <a href="#ablauf">So funktioniert's</a>
+    <a href="#preis">Preis</a>
+    <a href="#faq">FAQ</a>
+    <a href="app.html">Ich habe einen Code</a>
+    <a href="kaufen.html">Freischalten</a>
+  </div>
+</div></header>
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow gold">Wechselwirkungs-Check · Offline-App</p>
+      <h1>Medikamente sicher kombinieren – mit einem <span class="hl">Scan</span>.</h1>
+      <p class="lead">Verpackung scannen oder Wirkstoff eintippen – MediScan prüft in Sekunden auf bekannte <b>Wechselwirkungen</b> und <b>individuelle Risiken</b> und erstellt auf Wunsch ein PDF fürs Arzt- oder Apothekengespräch. Alles läuft lokal auf Ihrem Gerät.</p>
+      <div class="cta-row">
+        <a class="btn gold lg" href="kaufen.html">Freischalten · 99&nbsp;€ einmalig</a>
+        <a class="btn ghost on-navy lg" href="#ablauf">So funktioniert's</a>
+      </div>
+      <div class="trustline">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Einmalzahlung, keine Folgekosten</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Offline nutzbar</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Daten bleiben auf dem Gerät</span>
+      </div>
+    </div>
+    <div class="hero-visual" aria-hidden="true">
+      <div class="tag t1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14 0M8.5 16.4a6 6 0 0 1 7 0M2 8.82a15 15 0 0 1 20 0"/><path d="m2 2 20 20"/></svg>Läuft ohne Internet</div>
+      <div class="phone"><div class="phone-screen">
+        <div class="ph-top"><span>MediScan</span><span class="st"><i></i>lokal geprüft</span></div>
+        <div class="ph-cam">
+          <div class="ph-frame"></div>
+          <div class="ph-pack"><span class="pk-name">Marcumar® 3&nbsp;mg</span><div class="ph-bars"></div><small>PZN wird gelesen …</small></div>
+          <div class="ph-laser"></div>
+        </div>
+        <div class="ph-hit"><b>ERKANNT</b><span>Phenprocoumon 3&nbsp;mg</span><small>Marcumar® · Gerinnungshemmer (Cumarin)</small></div>
+        <div class="ph-res">
+          <div class="ph-row hi"><span class="sev">Schwerwiegend</span><b>Marcumar + Ibuprofen</b><small>Deutlich erhöhtes Blutungsrisiko</small></div>
+          <div class="ph-row mid"><span class="sev">Mäßig</span><b>Metoprolol + Verapamil</b><small>Puls & Reizleitung beachten</small></div>
+        </div>
+        <div class="ph-queue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12Z"/><path d="M9 10.5 11 12.5 15 8.5"/></svg>Auswertung bleibt auf dem Gerät</div>
+      </div></div>
+      <div class="tag t2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>Kein Konto, kein Tracking</div>
+    </div>
   </div>
 </section>
 
-<main class="wrap">
-  <div class="disclaimer" role="note" style="margin-top:20px">
-    <b>⚠ Wichtiger Hinweis:</b> MediScan ist ein <b>Informations- und Nachschlagewerkzeug</b> und
-    ersetzt <b>keine ärztliche oder pharmazeutische Beratung</b>. Treffen Sie keine
-    Therapieentscheidung – insbesondere kein Absetzen oder Umstellen von Medikamenten – allein
-    aufgrund dieser App. Fragen Sie im Zweifel Ihre Ärztin/Ihren Arzt oder Ihre Apotheke.
-  </div>
+<div class="disband-wrap"><div class="disband"><b>⚠ Wichtiger Hinweis:</b> MediScan ist ein Informations- und Nachschlagewerkzeug und ersetzt keine ärztliche oder pharmazeutische Beratung. Treffen Sie keine Therapieentscheidung – insbesondere kein Absetzen oder Umstellen von Medikamenten – allein aufgrund dieser App.</div></div>
 
-  <section class="section" id="features" style="padding-top:10px">
-    <h2>Was MediScan kann</h2>
-    <p class="sub">Entwickelt für den Alltag: schnell, verständlich und ohne Abo.</p>
-    <div class="features">
-      <div class="feature">
-        <div class="ic" aria-hidden="true">🔎</div>
-        <h3>Suchen &amp; scannen</h3>
-        <p>Medikament oder Wirkstoff eintippen – auch Handelsnamen wie „Beloc" oder „Marcumar" –
-          oder ein Foto der Verpackung aufnehmen. Die Texterkennung läuft auf Ihrem Gerät.</p>
-      </div>
-      <div class="feature">
-        <div class="ic" aria-hidden="true">⚠️</div>
-        <h3>Wechselwirkungen</h3>
-        <p>MediScan erkennt bekannte Wechselwirkungen zwischen zwei oder mehreren Wirkstoffen und
-          stuft sie nach Schweregrad ein – mit verständlicher Erklärung.</p>
-      </div>
-      <div class="feature">
-        <div class="ic" aria-hidden="true">🧑‍⚕️</div>
-        <h3>Patientenprofil</h3>
-        <p>Optional berücksichtigt die Prüfung besondere Situationen wie Schwangerschaft,
-          Nieren- oder Leberschwäche, hohes Alter oder Kinder.</p>
-      </div>
-      <div class="feature">
-        <div class="ic" aria-hidden="true">📄</div>
-        <h3>PDF fürs Gespräch</h3>
-        <p>Erstellen Sie mit einem Klick eine übersichtliche Zusammenfassung als PDF – ideal zum
-          Mitnehmen in die Praxis oder Apotheke.</p>
-      </div>
-      <div class="feature">
-        <div class="ic" aria-hidden="true">📴</div>
-        <h3>Offline &amp; als App</h3>
-        <p>Nach dem ersten Laden funktioniert MediScan ohne Internet. Über „Zum Startbildschirm
-          hinzufügen" nutzen Sie es wie eine installierte App.</p>
-      </div>
-      <div class="feature">
-        <div class="ic" aria-hidden="true">🔒</div>
-        <h3>Privat by Design</h3>
-        <p>Ihre Medikamentenliste verlässt das Gerät nicht. Keine Konten, keine Cookies, kein
-          Tracking – die Auswertung passiert vollständig im Browser.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="how">
-    <h2>In drei Schritten</h2>
-    <p class="sub">Vom Medikament zur Einschätzung in unter einer Minute.</p>
-    <div class="features">
-      <div class="feature">
-        <div class="ic" aria-hidden="true">1</div>
-        <h3>Medikamente erfassen</h3>
-        <p>Über die Suche hinzufügen oder die Verpackung fotografieren. Beliebig viele Präparate
-          lassen sich kombinieren.</p>
-      </div>
-      <div class="feature">
-        <div class="ic" aria-hidden="true">2</div>
-        <h3>Profil wählen</h3>
-        <p>Zutreffende Punkte antippen – etwa „Ältere Menschen" oder „Niereninsuffizienz" – um
-          zusätzlich auf besondere Risiken zu prüfen.</p>
-      </div>
-      <div class="feature">
-        <div class="ic" aria-hidden="true">3</div>
-        <h3>Prüfen &amp; besprechen</h3>
-        <p>Ergebnis nach Schweregrad lesen, bei Bedarf als PDF sichern und mit Ärztin/Arzt oder
-          Apotheke besprechen.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="kaufen">
-    <h2>Einmal freischalten – dauerhaft nutzen</h2>
-    <p class="sub">Ein fairer Festpreis statt Abo. Kein Konto, keine versteckten Kosten.</p>
-    <div class="card" style="max-width:560px;margin:0 auto;text-align:center">
-      <div style="font-size:2.7rem;font-weight:800;color:var(--petrol);line-height:1">99&nbsp;€</div>
-      <div style="font-size:.95rem;font-weight:600;color:var(--muted);margin-top:4px">einmalig · keine Folgekosten</div>
-      <ul style="list-style:none;padding:0;margin:20px 0;text-align:left;display:inline-block;line-height:1.9">
-        <li>✅ Voller Funktionsumfang: Suche, Scan, Profil-Check, PDF</li>
-        <li>✅ Regelmäßige Updates inklusive</li>
-        <li>✅ Kundensupport per E-Mail</li>
-        <li>✅ Alle Gesundheitsdaten bleiben auf Ihrem Gerät</li>
-        <li>✅ Nach Freischaltung offline nutzbar</li>
-      </ul>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
-        <a class="btn lg cyan" href="kaufen.html">Jetzt kaufen · 99&nbsp;€</a>
-        <a class="btn lg ghost" href="app.html">Code einlösen</a>
-      </div>
-      <p class="small muted" style="margin:16px 0 0">Zahlung bequem per Überweisung – mit QR-Code (GiroCode) für Ihre Banking-App. Ihren persönlichen Bestätigungscode erhalten Sie nach Zahlungseingang per E-Mail.</p>
-    </div>
-  </section>
-
-  <section class="section" id="data">
-    <h2>Woher die Daten kommen</h2>
-    <p class="sub">Transparenz ist bei Gesundheitsthemen Pflicht.</p>
-    <div class="card">
-      <p style="margin-top:0">Die Wechselwirkungs- und Risikohinweise stammen aus einer
-        <b>kuratierten Referenzdatenbank</b>. MediScan gibt <b>keine automatisch generierten oder
-        statistisch geschätzten</b> medizinischen Aussagen aus – angezeigt werden nur geprüfte
-        Inhalte. Die Datenbank wird laufend um deutsche Handelsnamen und Wirkstoffe ergänzt.</p>
-      <p>Trotz sorgfältiger Pflege kann eine Datenbank nie vollständig sein: Ein <b>fehlender
-        Treffer bedeutet nicht, dass keine Wechselwirkung besteht.</b> MediScan ersetzt keine
-        fachliche Prüfung im Einzelfall.</p>
-      <p style="margin-bottom:0"><b>Datenschutz:</b> Medikamentendaten werden ausschließlich lokal
-        auf Ihrem Gerät verarbeitet und nicht an einen Server übertragen. Näheres in der
-        <a href="datenschutz.html">Datenschutzerklärung</a>.</p>
-    </div>
-  </section>
-
-  <section class="section" id="ausblick">
-    <h2>Geplant</h2>
-    <p class="sub">MediScan wird weiterentwickelt. In Vorbereitung:</p>
-    <div class="card">
-      <ul style="margin:0;padding-left:20px">
-        <li>Gespeicherte Medikamentenpläne &amp; Wiedererkennung über mehrere Geräte</li>
-        <li>Erweiterte Wirkstoff-Abdeckung aus zusätzlichen, lizenzsauberen Quellen</li>
-        <li>Erinnerungen und Druck-/Teilen-Funktionen für Angehörige und Pflege</li>
-      </ul>
-      <p class="small muted" style="margin-bottom:0">Diese Funktionen sind in Planung. Für alle
-        Käufer sind Updates im Festpreis enthalten – ohne Folgekosten.</p>
-    </div>
-  </section>
-</main>
-
-<footer>
+<section class="tight">
   <div class="wrap">
-    <div class="links">
-      <a href="kaufen.html">Kaufen</a>
-      <a href="app.html">App</a>
-      <a href="impressum.html">Impressum</a>
-      <a href="datenschutz.html">Datenschutz</a>
-      <a href="agb.html">Nutzungsbedingungen</a>
+    <div class="sec-head"><p class="eyebrow">Für wen</p><h2>Für alle, die den Überblick behalten wollen</h2><p>Gemacht für den Alltag mit mehreren Medikamenten – verständlich, schnell und ohne Fachchinesisch.</p></div>
+    <div class="audience">
+      <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>Mehrere Medikamente gleichzeitig</div>
+      <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>Angehörige &amp; Pflege</div>
+      <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>Vor dem Arzt- oder Apothekenbesuch</div>
+      <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>Chronische Erkrankungen</div>
+      <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>Betreuung älterer Menschen</div>
+      <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>Reiseapotheke</div>
     </div>
-    <div>© 2026 MediScan · Ein Informationswerkzeug – kein Medizinprodukt zur Diagnose oder
-      Therapie. Im Notfall wählen Sie den ärztlichen Notdienst (116 117) oder den Notruf (112).</div>
   </div>
-</footer>
+</section>
 
+<section id="funktionen" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><p class="eyebrow">Funktionen</p><h2>Alles für den schnellen Check. Nichts, was ablenkt.</h2><p>Erfassen, prüfen, verstehen – und bei Bedarf zum Gespräch mitnehmen.</p></div>
+    <div class="grid g3">
+      <div class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
+        <h3>Suchen &amp; scannen</h3>
+        <p>Wirkstoff oder Handelsnamen wie „Beloc" oder „Marcumar" eintippen – oder die Verpackung fotografieren. Texterkennung und PZN-/Barcode-Scan laufen direkt auf Ihrem Gerät.</p>
+      </div>
+      <div class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+        <h3>Wechselwirkungen erkennen</h3>
+        <p>MediScan erkennt bekannte Wechselwirkungen zwischen zwei oder mehreren Wirkstoffen, stuft sie nach Schweregrad ein und erklärt sie in verständlicher Sprache.</p>
+      </div>
+      <div class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/></svg></div>
+        <h3>Individuelle Risiken</h3>
+        <p>Optional berücksichtigt die Prüfung besondere Situationen wie Schwangerschaft, Nieren- oder Leberschwäche, hohes Alter oder Kinder.</p>
+      </div>
+      <div class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg></div>
+        <h3>PDF fürs Gespräch</h3>
+        <p>Mit einem Klick eine übersichtliche Zusammenfassung als PDF erzeugen – ideal zum Mitnehmen in die Praxis oder Apotheke.</p>
+      </div>
+      <div class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <h3>Pläne &amp; Erinnerungen</h3>
+        <p>Medikationsplan speichern und Einnahme-Erinnerungen setzen – als Kalender-Datei (.ics) oder als Hinweis in der App. Alles gerätelokal.</p>
+      </div>
+      <div class="feature gold">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h3>Privat &amp; offline</h3>
+        <p>Nach dem ersten Laden funktioniert MediScan ohne Internet. Keine Konten, keine Cookies, kein Tracking – die Auswertung passiert vollständig auf Ihrem Gerät.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sicher" class="navy-sec">
+  <div class="wrap">
+    <div class="sec-head"><p class="eyebrow gold">Verlässlich &amp; privat</p><h2>Nur geprüfte Angaben. Keine Spekulation.</h2><p>Bei Gesundheitsthemen zählt, woher eine Aussage kommt – und wo ihre Grenzen sind.</p></div>
+    <div class="grid g3">
+      <div class="ofx">
+        <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <h3>Nur geprüfte Inhalte</h3>
+        <p>Die Hinweise stammen aus einer kuratierten Referenzdatenbank. MediScan gibt keine automatisch generierten oder statistisch geschätzten medizinischen Aussagen aus – angezeigt wird nur, was belegt ist.</p>
+      </div>
+      <div class="ofx">
+        <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
+        <h3>Alles auf dem Gerät</h3>
+        <p>Ihre Medikamentenliste verlässt das Gerät nicht. Es gibt keine Konten und kein Tracking; die Kamera wird nur lokal zum Lesen der Codes genutzt – es werden keine Bilder übertragen.</p>
+      </div>
+      <div class="ofx">
+        <div class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></div>
+        <h3>Ehrlich über Grenzen</h3>
+        <p>Ein fehlender Treffer bedeutet nicht, dass keine Wechselwirkung besteht. MediScan ersetzt keine fachliche Prüfung im Einzelfall – im Zweifel fragen Sie Ärztin, Arzt oder Apotheke.</p>
+      </div>
+    </div>
+    <p class="technote">Ergänzend zeigt MediScan zu vielen Wirkstoffen die öffentliche Original-Fachinformation der US-Arzneimittelbehörde FDA (englisch, unverändert) – als Zusatzquelle, von MediScan nicht bewertet. Technik: Progressive Web App mit lokaler Datenbank; läuft auf Android, iPhone, Tablet und PC im Browser, ohne Installation aus einem App-Store. Kein Medizinprodukt zur Diagnose oder Therapie.</p>
+  </div>
+</section>
+
+<section id="ablauf">
+  <div class="wrap">
+    <div class="sec-head"><p class="eyebrow">So funktioniert's</p><h2>Vom Medikament zur Einschätzung in unter einer Minute</h2></div>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><h3>Medikamente erfassen</h3><p>Über die Suche hinzufügen oder die Verpackung fotografieren bzw. den Code scannen. Beliebig viele Präparate lassen sich kombinieren.</p></div>
+      <div class="step"><div class="n">2</div><h3>Profil wählen</h3><p>Zutreffende Punkte antippen – etwa „Ältere Menschen" oder „Niereninsuffizienz" – um zusätzlich auf besondere Risiken zu prüfen.</p></div>
+      <div class="step"><div class="n">3</div><h3>Prüfen &amp; besprechen</h3><p>Ergebnis nach Schweregrad lesen, bei Bedarf als PDF sichern und mit Ärztin/Arzt oder Apotheke besprechen.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="preis" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><p class="eyebrow">Preis</p><h2>Einmal freischalten – dauerhaft nutzen</h2><p>Ein fairer Festpreis statt Abo. Kein Konto, keine versteckten Kosten, keine automatische Verlängerung.</p></div>
+    <div class="offer">
+      <div class="badge">Einmalig</div>
+      <div class="price">99&nbsp;€</div>
+      <div class="per">einmalig · keine Folgekosten</div>
+      <ul>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Voller Funktionsumfang: Suche, Scan, Profil-Check, PDF</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Pläne &amp; Einnahme-Erinnerungen</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Regelmäßige Updates inklusive</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Kundensupport per E-Mail</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Alle Gesundheitsdaten bleiben auf dem Gerät</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Nach Freischaltung offline nutzbar</li>
+      </ul>
+      <div class="cta">
+        <a class="btn gold lg" href="kaufen.html">Jetzt kaufen · 99&nbsp;€</a>
+        <a class="btn ghost lg" href="app.html">Code einlösen</a>
+      </div>
+    </div>
+    <p class="pricenote">Zahlung bequem per Überweisung – mit QR-Code (GiroCode) für Ihre Banking-App. Ihren persönlichen Bestätigungscode erhalten Sie nach Zahlungseingang per E-Mail. Preis als Endpreis; gemäß § 19 UStG wird keine Umsatzsteuer ausgewiesen.</p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head"><p class="eyebrow">Häufige Fragen</p><h2>Kurz beantwortet</h2></div>
+    <div class="faq">
+      <details open><summary>Ist MediScan ein Medizinprodukt?<svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary><p>Nein. MediScan ist ein Informations- und Nachschlagewerkzeug und kein Medizinprodukt zur Diagnose oder Therapie. Es ersetzt keine ärztliche oder pharmazeutische Beratung – treffen Sie keine Therapieentscheidung allein aufgrund der App.</p></details>
+      <details><summary>Woher kommen die Daten?<svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary><p>Aus einer kuratierten Referenzdatenbank – angezeigt werden nur geprüfte Inhalte, keine automatisch generierten oder geschätzten Aussagen. Die Datenbank wird laufend um deutsche Handelsnamen und Wirkstoffe ergänzt. Ergänzend zeigt MediScan zu vielen Wirkstoffen die öffentliche US-FDA-Originalfachinfo (englisch, unverändert, nicht von uns bewertet).</p></details>
+      <details><summary>Was, wenn ein Medikament nicht gefunden wird?<svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary><p>Ein fehlender Treffer bedeutet nicht, dass keine Wechselwirkung besteht. Prüfen Sie die Schreibweise oder den Wirkstoffnamen und fragen Sie im Zweifel Ihre Ärztin/Ihren Arzt oder Ihre Apotheke.</p></details>
+      <details><summary>Funktioniert die App offline?<svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary><p>Ja. Nach dem ersten Laden funktioniert MediScan ohne Internet. Über „Zum Startbildschirm hinzufügen" nutzen Sie es wie eine installierte App – auf Android, iPhone, Tablet und PC.</p></details>
+      <details><summary>Wo liegen meine Daten?<svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary><p>Ausschließlich lokal auf Ihrem Gerät. Ihre Medikamentendaten werden nicht an einen Server übertragen, es gibt keine Konten und kein Tracking. Die Kamera dient nur der lokalen Erkennung – es werden keine Bilder übertragen.</p></details>
+      <details><summary>Wie bezahle ich und wie läuft die Freischaltung?<svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary><p>Einmalig 99 € per Überweisung. Sie erhalten eine Rechnung mit Bankverbindung und GiroCode; den scannen Sie mit Ihrer Banking-App. Nach Zahlungseingang bekommen Sie Ihren persönlichen Bestätigungscode per E-Mail – danach ist die App dauerhaft und offline nutzbar.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="tight">
+  <div class="wrap">
+    <div class="ctaband center">
+      <h2>Prüfen Sie Ihre Kombination – in unter einer Minute.</h2>
+      <p>Einmal 99 €, offline nutzbar, alle Gesundheitsdaten bleiben bei Ihnen. Kein Abo, keine versteckten Kosten.</p>
+      <a class="btn gold lg" href="kaufen.html">Jetzt freischalten</a>
+    </div>
+  </div>
+</section>
+
+<footer class="site"><div class="wrap">
+  <div class="cols">
+    <div>
+      <a class="brand" href="index.html"><span>MediScan<small>Wechselwirkungs-Check</small></span></a>
+      <p>Medikamente scannen oder eingeben und in Sekunden auf Wechselwirkungen und individuelle Risiken prüfen – offline und ohne Konto.</p>
+    </div>
+    <div><h4>Produkt</h4><a href="#funktionen">Funktionen</a><a href="#sicher">Sicherheit</a><a href="#preis">Preis</a><a href="#faq">FAQ</a></div>
+    <div><h4>App</h4><a href="kaufen.html">Freischalten</a><a href="kaufen.html">Kaufen</a><a href="app.html">App öffnen</a><a href="app.html">Code einlösen</a></div>
+    <div><h4>Rechtliches</h4><a href="impressum.html">Impressum</a><a href="datenschutz.html">Datenschutz</a><a href="agb.html">Nutzungsbedingungen</a></div>
+  </div>
+  <div class="fbot">© <span data-year>2026</span> MediScan · Ein Informationswerkzeug – kein Medizinprodukt zur Diagnose oder Therapie. Im Notfall wählen Sie den ärztlichen Bereitschaftsdienst (116 117) oder den Notruf (112).</div>
+</div></footer>
+
+<script>
+(function(){
+  var t=document.querySelector('.nav-toggle'), nav=document.querySelector('.nav');
+  if(t&&nav){t.addEventListener('click',function(){var o=nav.classList.toggle('open');t.setAttribute('aria-expanded',o?'true':'false');});
+    document.querySelectorAll('.mobile-menu a').forEach(function(a){a.addEventListener('click',function(){nav.classList.remove('open');t.setAttribute('aria-expanded','false');});});}
+  var y=document.querySelector('[data-year]'); if(y) y.textContent=new Date().getFullYear();
+})();
+</script>
 <script>
 (function () {
   if (!("serviceWorker" in navigator)) return;
