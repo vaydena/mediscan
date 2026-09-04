@@ -543,14 +543,17 @@
     if (v) v.hidden = true; if (b) b.hidden = false;
   }
 
-  // ---- Tabs -----------------------------------------------------------------
+  // ---- „Tabs" entfernt ------------------------------------------------------
+  // Suche UND Foto-Buttons stehen jetzt gleichzeitig auf der Seite (kein
+  // Umschalter mehr). setTab bleibt als sanfter No-Op erhalten, damit die
+  // bestehenden Aufrufer (setTab("manual") nach dem Hinzufügen/Reset/Boot)
+  // unverändert funktionieren: es beendet nur eine evtl. laufende Live-Kamera
+  // und setzt den Fokus zurück ins Suchfeld. Es blendet nichts mehr aus.
   function setTab(which) {
-    var man = which === "manual";
-    el("tab-manual").setAttribute("aria-selected", man);
-    el("tab-scan").setAttribute("aria-selected", !man);
-    el("pane-manual").hidden = !man;
-    el("pane-scan").hidden = man;
-    if (man) { stopScan(); setTimeout(function () { el("q").focus(); }, 30); }
+    stopScan();                       // No-Op ohne Live-Kamera-DOM
+    if (which === "manual") {
+      setTimeout(function () { var q = el("q"); if (q) q.focus(); }, 30);
+    }
   }
 
   // ---- Analyse + Ergebnis-Rendering -----------------------------------------
@@ -826,9 +829,8 @@
 
   // ---- Verdrahtung ----------------------------------------------------------
   function wire() {
-    el("tab-manual").addEventListener("click", function () { setTab("manual"); });
-    el("tab-scan").addEventListener("click", function () { setTab("scan"); });
-
+    // (Die früheren Tab-Buttons #tab-manual/#tab-scan gibt es nicht mehr –
+    //  beide Eingabewege sind dauerhaft sichtbar, daher keine Klick-Verdrahtung.)
     var q = el("q");
     q.addEventListener("input", function () { renderAC(MS.search(q.value, 12)); });
     q.addEventListener("keydown", function (e) {

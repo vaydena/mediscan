@@ -205,12 +205,11 @@ body.ms-locked{overflow:hidden}
   <!-- Eingabe -->
   <section class="card">
     <h2>1. Medikamente erfassen</h2>
-    <div class="seg" role="tablist">
-      <button id="tab-manual" role="tab" aria-selected="true">🔎 Suchen &amp; hinzufügen</button>
-      <button id="tab-scan" role="tab" aria-selected="false">📷 Foto scannen</button>
-    </div>
-
+    <!-- Kein Tab-Umschalter mehr: Beide Wege stehen gleichzeitig da – nach Name
+         suchen ODER die Packung fotografieren. So erscheinen die Foto-Buttons
+         sofort, ohne dass man erst einen „Foto scannen"-Tab öffnen muss. -->
     <div id="pane-manual">
+      <h3 style="font-size:1.02rem;margin:0 0 10px">🔎 Nach Name suchen</h3>
       <div class="field">
         <input type="text" id="q" autocomplete="off" placeholder="Medikament oder Wirkstoff (z. B. Ibuprofen, Marcumar) …" aria-label="Medikament suchen">
         <div class="ac" id="ac" hidden></div>
@@ -218,7 +217,10 @@ body.ms-locked{overflow:hidden}
       <p class="small muted" style="margin:8px 2px 0">Tippen Sie einen Namen oder Wirkstoff – auch Handelsnamen wie „Beloc" oder „Godamed".</p>
     </div>
 
-    <div id="pane-scan" hidden>
+    <div class="hr" style="margin:18px 0 16px"></div>
+
+    <div id="pane-scan">
+      <h3 style="font-size:1.02rem;margin:0 0 10px">📷 … oder Packung fotografieren</h3>
       <!-- Zwei klar getrennte Wege, beide münden in DENSELBEN Decoder:
            „Foto aufnehmen" öffnet über capture="environment" direkt die Kamera,
            „Aus Galerie wählen" öffnet OHNE capture den Foto-/Datei-Picker mit den
