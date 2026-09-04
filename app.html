@@ -429,8 +429,24 @@ body.ms-locked{overflow:hidden}
 
   function offerChromium() {
     if (!window.__msDeferredInstall) return;
+    if (dismissed() || isStandalone() || window.__msInstalled) return;
     txt.innerHTML = '<b>MediScan als App installieren</b> – dann liegt sie wie eine App auf Ihrem Startbildschirm und öffnet mit einem Tipp direkt den Scan.';
     goBtn.hidden = false;
+    show();
+  }
+
+  /* Fallback für Android/Desktop, wenn der Browser KEIN automatisches Prompt liefert
+     (beforeinstallprompt feuert je nach Chrome-Heuristik verzögert, gar nicht – etwa
+     im In-App-Browser – oder wird von anderen Browsern nicht unterstützt). So gibt es
+     immer einen sichtbaren Weg; kommt das echte Event doch, wertet offerChromium den
+     Hinweis automatisch zum Ein-Tipp-Button auf. */
+  function offerManual() {
+    if (window.__msDeferredInstall) { offerChromium(); return; }
+    if (dismissed() || isStandalone() || window.__msInstalled) return;
+    if (box.style.display === "flex") return;
+    txt.innerHTML = '<b>MediScan als App ablegen:</b> im Browser-Menü (Chrome: ⋮ oben rechts) auf '
+      + '„App installieren" bzw. „Zum Startbildschirm hinzufügen" tippen. Dann öffnet ein Tipp aufs Icon direkt den Scan.';
+    goBtn.hidden = true;
     show();
   }
 
@@ -453,6 +469,9 @@ body.ms-locked{overflow:hidden}
       + '<span aria-hidden="true">⎋</span> tippen, dann „Zum Home-Bildschirm". So öffnet MediScan wie eine App – direkt beim Scan.';
     goBtn.hidden = true;
     show();
+  } else {
+    /* Kein iOS: dem echten Prompt kurz Zeit geben, sonst manuelle Anleitung zeigen. */
+    setTimeout(offerManual, 1600);
   }
 
   xBtn.addEventListener("click", hideForever);
