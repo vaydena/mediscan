@@ -396,11 +396,21 @@ body.ms-locked{overflow:hidden}
   var txt = d.getElementById("ms-install-txt");
   var goBtn = d.getElementById("ms-install-go");
   var xBtn = d.getElementById("ms-install-x");
-  var DISMISS = "ms.install.hidden";
+  var DISMISS = "ms.install.snooze";        // Zeitstempel der letzten „×"-Ablehnung
+  var SNOOZE_MS = 14 * 24 * 60 * 60 * 1000; // Hinweis nach dem Wegklicken 14 Tage ruhen lassen
+  // Altlast entsorgen: das frühere Dauer-Flag wurde beim Installieren gesetzt und
+  // überlebte die Deinstallation (localStorage gehört der Origin, nicht der App) →
+  // danach erschien der Installieren-Hinweis nie wieder. Einmalig aufräumen.
+  try { localStorage.removeItem("ms.install.hidden"); } catch (e) {}
 
-  function dismissed() { try { return localStorage.getItem(DISMISS) === "1"; } catch (e) { return false; } }
+  function dismissed() {
+    try {
+      var t = parseInt(localStorage.getItem(DISMISS) || "0", 10);
+      return t > 0 && (Date.now() - t) < SNOOZE_MS;
+    } catch (e) { return false; }
+  }
   function hide() { box.style.display = "none"; }
-  function hideForever() { try { localStorage.setItem(DISMISS, "1"); } catch (e) {} hide(); }
+  function snooze() { try { localStorage.setItem(DISMISS, String(Date.now())); } catch (e) {} hide(); }
   function show() { box.style.display = "flex"; }
 
   /* Läuft die App bereits als installierte App? Dann nie fragen. */
@@ -442,12 +452,15 @@ body.ms-locked{overflow:hidden}
   if (window.__msDeferredInstall) offerChromium();
   window.addEventListener("ms-installable", offerChromium);
   window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); window.__msDeferredInstall = e; offerChromium(); });
-  window.addEventListener("appinstalled", function () { window.__msInstalled = true; hideForever(); });
+  // Installiert: nur für diese Sitzung ausblenden – KEIN Dauer-Flag. Läuft die App
+  // wirklich installiert, greift ohnehin isStandalone(); nach einer Deinstallation
+  // soll der Hinweis wieder auftauchen dürfen.
+  window.addEventListener("appinstalled", function () { window.__msInstalled = true; hide(); });
 
   goBtn.addEventListener("click", function () {
     var dp = window.__msDeferredInstall; if (!dp) return;
     try { dp.prompt(); } catch (e) {}
-    var done = function () { window.__msDeferredInstall = null; hideForever(); };
+    var done = function () { window.__msDeferredInstall = null; hide(); };
     if (dp.userChoice && dp.userChoice.then) dp.userChoice.then(done, done); else done();
   });
 
@@ -462,7 +475,7 @@ body.ms-locked{overflow:hidden}
     setTimeout(offerManual, 1600);
   }
 
-  xBtn.addEventListener("click", hideForever);
+  xBtn.addEventListener("click", snooze);
 })();
 </script>
 </body>
