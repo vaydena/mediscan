@@ -133,6 +133,24 @@ function ok(name, cond, extra) {
   let ltd = MS.detect("L-Thyrox HEXAL 75 Mikrogramm Tabletten").map(x => x.ingredient);
   ok("Scan 'L-Thyrox HEXAL 75 …' -> Levothyroxin", ltd.includes("Levothyroxin"), JSON.stringify(ltd));
 
+  // --- Marken-Dubletten-Bereinigung (2026-09-04, DB ms-db-2026-09-04-5) -----
+  // Marken-Interaktionszeilen (Losec/Nexium …) doppelten früher die generische
+  // Zeile (Omeprazol/Esomeprazol). Da interactionsFor() über den Wirkstoff matcht,
+  // bleibt die Interaktion über die generische Zeile erhalten -> das Paar MUSS
+  // jetzt GENAU EINE Displayzeile liefern, nie null (Regression gegen versehentl.
+  // Über-Löschen) und nie zwei (Regression gegen Rückkehr der Dublette).
+  const rawDbEarly = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
+  const medsByIng = (w) => rawDbEarly.medications
+    .filter(m => MS.norm(m.activeIngredient) === MS.norm(w)).map(m => m.id);
+  const pairLines = (ids, re) => MS.interactionsFor([49].concat(ids)).filter(x => {
+    const n = x.drug1 + "|" + x.drug2; return /levothyroxin/i.test(n) && re.test(n);
+  }).length;
+  const omeAll = medsByIng("Omeprazol"), esoAll = medsByIng("Esomeprazol");
+  ok("bereinigt: Levothyroxin + Omeprazol (inkl. Marke Losec) = genau 1 Zeile",
+    pairLines(omeAll, /omeprazol/i) === 1, "n=" + pairLines(omeAll, /omeprazol/i));
+  ok("bereinigt: Levothyroxin + Esomeprazol (inkl. Marke Nexium) = genau 1 Zeile",
+    pairLines(esoAll, /esomeprazol/i) === 1, "n=" + pairLines(esoAll, /esomeprazol/i));
+
   // --- Kombipräparate: ein Handelsname -> mehrere Wirkstoffe ---
   let jm = MS.search("janumet");
   let jmPick = jm.find(p => p.ids.length > 1);
