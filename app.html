@@ -6,7 +6,8 @@
 <title>MediScan – Wechselwirkungen prüfen</title>
 <meta name="description" content="Medikamente scannen oder eingeben und auf Wechselwirkungen sowie Patientenrisiken prüfen. Offline nutzbar. Kein Ersatz für ärztliche Beratung.">
 <meta name="theme-color" content="#00695c">
-<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#07211d" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="MediScan">
@@ -27,54 +28,74 @@ window.addEventListener("beforeinstallprompt", function (e) {
 window.addEventListener("appinstalled", function () { window.__msInstalled = true; });
 </script>
 <style>
-/* ---- Zugangs-Sperre (Bestätigungscode) ---- */
-#ms-gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;
-  background:radial-gradient(1000px 480px at 50% -10%,rgba(0,105,92,.10),transparent),#eef4f3}
+/* ---- Zugangs-Sperre (Bestätigungscode) ----
+   Nutzt die Design-Tokens aus mediscan.css (mit Fallbacks) und folgt damit
+   automatisch auch dem Dark Mode der App (body.ms-app). */
+#ms-gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:
+  radial-gradient(900px 480px at 82% -10%,rgba(95,208,194,.18),transparent 60%),
+  radial-gradient(700px 420px at 0% -6%,rgba(232,165,30,.10),transparent 55%),
+  var(--bg,#eef5f4)}
 #ms-gate[hidden]{display:none!important}
-#ms-gate .box{max-width:440px;width:100%;background:#fff;border:1px solid #cfe3df;border-radius:18px;
-  box-shadow:0 10px 34px rgba(4,60,55,.14);padding:30px 26px;text-align:center}
-#ms-gate .glogo{width:54px;height:54px;margin:0 auto 14px;display:block;border-radius:13px}
-#ms-gate h2{margin:0 0 8px;color:#00695c;font-size:1.3rem;line-height:1.25}
-#ms-gate p{margin:6px 0;color:#3a5a55;font-size:.96rem;line-height:1.55}
-#ms-gate a{color:#00695c}
-#ms-gate .spin{width:30px;height:30px;margin:16px auto 6px;border:3px solid #cfe3df;border-top-color:#00897b;border-radius:50%;animation:msgspin .8s linear infinite}
+#ms-gate .box{max-width:460px;width:100%;background:var(--card,#fff);border:1px solid var(--line,#d6e6e3);
+  border-radius:24px;box-shadow:0 24px 64px -22px rgba(4,60,55,.4),0 2px 8px rgba(4,60,55,.08);
+  padding:32px 26px;text-align:center}
+#ms-gate .glogo{width:64px;height:64px;margin:0 auto 16px;display:block;border-radius:16px;
+  filter:drop-shadow(0 10px 22px rgba(10,125,112,.4))}
+#ms-gate h2{margin:0 0 8px;color:var(--ink,#13322d);font-size:1.32rem;line-height:1.25;letter-spacing:-.01em}
+#ms-gate p{margin:6px 0;color:var(--muted,#587470);font-size:.96rem;line-height:1.55}
+#ms-gate a{color:var(--cyan-d,#0b8478);font-weight:600}
+#ms-gate .spin{width:32px;height:32px;margin:18px auto 8px;border:3px solid var(--line,#d6e6e3);
+  border-top-color:var(--cyan,#0ea99a);border-radius:50%;animation:msgspin .8s linear infinite}
 @keyframes msgspin{to{transform:rotate(360deg)}}
-#ms-gate .gin{width:100%;font-size:1.05rem;letter-spacing:.05em;text-align:center;text-transform:uppercase;
-  border:1.5px solid #cfe3df;border-radius:12px;padding:13px 12px;margin:14px 0 2px;background:#fbfdfc;
-  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;box-sizing:border-box}
-#ms-gate .gin:focus{outline:none;border-color:#00897b;box-shadow:0 0 0 3px rgba(0,137,123,.18)}
-#ms-gate .gbtn{display:block;width:100%;box-sizing:border-box;border:0;cursor:pointer;font:inherit;font-weight:700;font-size:1rem;
-  padding:13px 18px;border-radius:999px;background:#00897b;color:#fff;margin-top:10px}
-#ms-gate .gbtn:hover{background:#00695c}
-#ms-gate .gbtn.sec{background:transparent;color:#00695c;border:2px solid #cfe3df}
-#ms-gate .gerr{color:#b3261e;font-weight:600;font-size:.9rem;margin:8px 2px 0;min-height:1.1em}
-#ms-gate .gfoot{margin-top:16px;font-size:.85rem;color:#6f8a85;line-height:1.7}
+#ms-gate .gin{width:100%;font-size:1.12rem;letter-spacing:.07em;text-align:center;text-transform:uppercase;
+  min-height:56px;border:1.5px solid var(--line,#d6e6e3);border-radius:14px;padding:14px 12px;margin:16px 0 2px;
+  background:var(--soft,#f2f9f7);color:var(--ink,#13322d);
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;box-sizing:border-box;
+  transition:border-color .15s,box-shadow .15s}
+#ms-gate .gin:focus{outline:none;border-color:var(--cyan,#0ea99a);box-shadow:var(--ring,0 0 0 4px rgba(14,169,154,.2))}
+#ms-gate .gbtn{display:flex;align-items:center;justify-content:center;width:100%;box-sizing:border-box;
+  border:0;cursor:pointer;font:inherit;font-weight:700;font-size:1.02rem;min-height:52px;
+  padding:13px 18px;border-radius:999px;background:var(--grad-accent,linear-gradient(135deg,#16b3a2,#0a8577));
+  color:#fff;margin-top:12px;box-shadow:0 10px 22px -10px rgba(11,132,120,.65);
+  transition:transform .06s,filter .15s;-webkit-tap-highlight-color:transparent}
+#ms-gate .gbtn:hover{filter:brightness(1.06)}
+#ms-gate .gbtn:active{transform:translateY(1px)}
+#ms-gate .gbtn.sec{background:transparent;color:var(--cyan-d,#0b8478);border:2px solid var(--line,#d6e6e3);box-shadow:none}
+#ms-gate .gerr{color:var(--sev3ink,#c62828);font-weight:600;font-size:.9rem;margin:8px 2px 0;min-height:1.1em}
+#ms-gate .gfoot{margin-top:18px;font-size:.86rem;color:var(--muted,#587470);line-height:1.8}
 @media (prefers-reduced-motion:reduce){ #ms-gate .spin{animation:none} }
 body.ms-locked{overflow:hidden}
 
 /* ---- „Als App installieren"-Hinweis ---- */
 #ms-install{display:none;align-items:center;gap:12px;margin:0 0 14px;
-  background:#e0f2f1;border:1px solid #9fd3cd;border-radius:14px;padding:12px 14px}
-#ms-install .ii{flex:0 0 auto;font-size:1.5rem;line-height:1}
-#ms-install .it{flex:1 1 auto;min-width:0;font-size:.92rem;color:#00463d;line-height:1.45}
-#ms-install .it b{color:#00695c}
-#ms-install .ibtn{flex:0 0 auto;border:0;cursor:pointer;font:inherit;font-weight:700;
-  background:#00897b;color:#fff;padding:9px 16px;border-radius:999px}
-#ms-install .ibtn:hover{background:#00695c}
-#ms-install .ix{flex:0 0 auto;border:0;background:transparent;color:#5a7d78;cursor:pointer;
-  font-size:1.3rem;line-height:1;padding:2px 4px}
-#ms-install .ix:hover{color:#00463d}
+  background:linear-gradient(135deg,var(--soft-2,#e4f3f0),var(--card,#fff) 70%);
+  border:1px solid var(--line,#d6e6e3);border-left:4px solid var(--amber,#e8a51e);
+  border-radius:14px;padding:12px 14px;box-shadow:var(--shadow-s,0 4px 14px -8px rgba(6,49,44,.16))}
+#ms-install .ii{flex:0 0 auto;font-size:1.55rem;line-height:1}
+#ms-install .it{flex:1 1 auto;min-width:0;font-size:.92rem;color:var(--ink,#13322d);line-height:1.5}
+#ms-install .it b{color:var(--petrol,#00695c)}
+#ms-install .ibtn{flex:0 0 auto;border:0;cursor:pointer;font:inherit;font-weight:700;min-height:42px;
+  background:var(--grad-accent,linear-gradient(135deg,#16b3a2,#0a8577));color:#fff;padding:9px 17px;border-radius:999px;
+  box-shadow:0 8px 18px -10px rgba(11,132,120,.6)}
+#ms-install .ibtn:hover{filter:brightness(1.06)}
+#ms-install .ix{flex:0 0 auto;width:34px;height:34px;border:0;background:transparent;color:var(--muted,#587470);
+  cursor:pointer;font-size:1.3rem;line-height:1;border-radius:50%;display:grid;place-items:center}
+#ms-install .ix:hover{background:var(--soft-2,#e4f3f0);color:var(--ink,#13322d)}
+@media (prefers-color-scheme: dark){
+  body.ms-app #ms-install .it b{color:var(--mint,#5fd0c2)}
+}
 
 /* ---- kurzes Aufleuchten des Scan-Bereichs, wenn per Verknuepfung geoeffnet ---- */
 @keyframes msScanPulse{
-  0%{box-shadow:0 0 0 0 rgba(0,137,123,0)}
-  15%{box-shadow:0 0 0 4px rgba(0,137,123,.38)}
-  100%{box-shadow:0 0 0 0 rgba(0,137,123,0)}}
-#pane-scan.ms-focus{border-radius:14px;animation:msScanPulse 1.9s ease-out 1}
+  0%{box-shadow:0 0 0 0 rgba(95,208,194,0)}
+  15%{box-shadow:0 0 0 5px rgba(95,208,194,.5)}
+  100%{box-shadow:0 0 0 0 rgba(95,208,194,0)}}
+#pane-scan.ms-focus{animation:msScanPulse 1.9s ease-out 1}
 @media (prefers-reduced-motion:reduce){ #pane-scan.ms-focus{animation:none} }
 </style>
 </head>
-<body>
+<body class="ms-app">
 <!-- ===== Zugangs-Sperre: Freischaltung per Bestätigungscode ===== -->
 <div id="ms-gate" role="dialog" aria-live="polite" aria-label="MediScan freischalten">
   <div class="box">
@@ -234,14 +255,14 @@ body.ms-locked{overflow:hidden}
 
   <!-- Eingabe -->
   <section class="card">
-    <h2>1. Medikamente erfassen</h2>
+    <h2><span class="step" aria-hidden="true">1</span>Medikamente erfassen</h2>
     <!-- Kein Tab-Umschalter mehr: Beide Wege stehen gleichzeitig da – nach Name
          suchen ODER die Packung fotografieren. So erscheinen die Foto-Buttons
          sofort, ohne dass man erst einen „Foto scannen"-Tab öffnen muss. -->
     <div id="pane-manual">
-      <h3 style="font-size:1.02rem;margin:0 0 10px">🔎 Nach Name suchen</h3>
+      <h3 class="subhead">🔎 Nach Name suchen</h3>
       <div class="field">
-        <input type="text" id="q" autocomplete="off" placeholder="Medikament oder Wirkstoff (z. B. Ibuprofen, Marcumar) …" aria-label="Medikament suchen">
+        <input type="text" id="q" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Medikament oder Wirkstoff …" aria-label="Medikament suchen">
         <div class="ac" id="ac" hidden></div>
       </div>
       <p class="small muted" style="margin:8px 2px 0">Tippen Sie einen Namen oder Wirkstoff – auch Handelsnamen wie „Beloc" oder „Godamed".</p>
@@ -249,8 +270,8 @@ body.ms-locked{overflow:hidden}
 
     <div class="hr" style="margin:18px 0 16px"></div>
 
-    <div id="pane-scan">
-      <h3 style="font-size:1.02rem;margin:0 0 10px">📷 … oder Packung fotografieren</h3>
+    <div id="pane-scan" class="scanpad">
+      <h3 class="subhead">📷 … oder Packung fotografieren</h3>
       <!-- Zwei klar getrennte Wege, beide münden in DENSELBEN Decoder:
            „Foto aufnehmen" öffnet über capture="environment" direkt die Kamera,
            „Aus Galerie wählen" öffnet OHNE capture den Foto-/Datei-Picker mit den
@@ -264,9 +285,9 @@ body.ms-locked{overflow:hidden}
            Regression). Beide Wege lesen 1D-PZN-Strichcode, 2D-Data-Matrix und –
            wenn kein Code lesbar ist – den aufgedruckten Präparatenamen per
            Texterkennung. -->
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button type="button" class="btn cyan" id="scanCamBtn" style="flex:1 1 150px">📷 Foto aufnehmen</button>
-        <button type="button" class="btn" id="scanGalBtn" style="flex:1 1 150px">🖼️ Aus Galerie wählen</button>
+      <div class="scanrow">
+        <button type="button" class="btn cyan" id="scanCamBtn">📷 Foto aufnehmen</button>
+        <button type="button" class="btn ghost" id="scanGalBtn">🖼️ Aus Galerie wählen</button>
       </div>
       <input type="file" id="barfileCam" accept="image/*" capture="environment" hidden>
       <input type="file" id="barfileGal" accept="image/*" hidden>
@@ -281,13 +302,14 @@ body.ms-locked{overflow:hidden}
       </div>
       <!-- Zeigt bei Nichttreffer den tatsächlich gelesenen Text an (Hilfe zur
            gezielten manuellen Suche). -->
-      <div id="ocrraw" class="small muted" hidden style="margin-top:8px;padding:8px 10px;border:1px solid var(--line,#d9e2ec);border-radius:8px;background:rgba(0,0,0,.03);word-break:break-word"></div>
+      <div id="ocrraw" class="small muted" hidden></div>
 
-      <!-- Notnagel ohne Kamera: PZN von Hand eintippen (standardmaessig offen) -->
-      <details class="ocrdetails" open>
+      <!-- Notnagel ohne Kamera: PZN von Hand eintippen (eingeklappt – der
+           Hauptweg bleibt aufgeräumt, die Überschrift macht ihn auffindbar) -->
+      <details class="ocrdetails">
         <summary>Kein Code lesbar? PZN von Hand eintippen</summary>
         <div class="pznrow">
-          <input type="text" id="pzn" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="PZN (z. B. 12345678) …" aria-label="PZN eingeben">
+          <input type="text" id="pzn" inputmode="numeric" autocomplete="off" enterkeyhint="done" maxlength="12" placeholder="PZN (z. B. 12345678) …" aria-label="PZN eingeben">
           <button type="button" class="btn" id="pznBtn">Prüfen</button>
         </div>
         <p class="small muted" style="margin:6px 2px 0">Die PZN steht auf der Packung (z. B. „PZN-12345678"). Eine Zuordnung PZN→Präparat wird ausschließlich <b>auf diesem Gerät</b> gespeichert – es gibt kein zentrales Register.</p>
@@ -317,7 +339,7 @@ body.ms-locked{overflow:hidden}
 
   <!-- Patientenprofil -->
   <section class="card">
-    <h2>2. Patientenprofil <span class="n">optional</span></h2>
+    <h2><span class="step" aria-hidden="true">2</span>Patientenprofil <span class="n">optional</span></h2>
     <p class="small muted" style="margin:-4px 0 12px">Aktivieren Sie zutreffende Punkte, um zusätzlich auf besondere Risiken zu prüfen.</p>
     <div class="toggles" id="toggles"></div>
   </section>

@@ -736,11 +736,21 @@
 
   function renderResults(r) {
     var iN = r.interactions.length, cN = r.complex.length, rN = r.risks.length;
-    var worst = 0;
-    r.interactions.concat(r.complex, r.risks).forEach(function (x) { if (x.sev.rank > worst) worst = x.sev.rank; });
+    // Höchste gefundene Einstufung (ganzes sev-Objekt) – speist das Ergebnis-Banner.
+    var worstSev = null;
+    r.interactions.concat(r.complex, r.risks).forEach(function (x) { if (!worstSev || x.sev.rank > worstSev.rank) worstSev = x.sev; });
 
     var h = '<div class="card">';
     h += '<h2>Ergebnis <button class="btn ghost small" id="pdfBtn" style="margin-left:auto;padding:8px 12px">⬇ PDF-Bericht</button></h2>';
+    // Gesamt-Banner: berichtet nur, was die Referenzdatenbank enthält (keine eigene
+    // klinische Bewertung – Label kommt unverändert aus der Engine).
+    if (worstSev && iN + cN + rN > 0) {
+      var totalN = iN + cN + rN;
+      h += '<div class="verdict sev' + (worstSev.rank || 0) + '">' +
+        '<span class="vicon" aria-hidden="true"></span>' +
+        '<div class="vtx"><b>Höchste Einstufung: ' + esc(worstSev.label) + '</b>' +
+        '<span>' + totalN + (totalN === 1 ? ' Eintrag' : ' Einträge') + ' in der Referenzdatenbank – Details unten. Besprechen Sie Auffälligkeiten mit Arzt oder Apotheke.</span></div></div>';
+    }
     h += '<div class="stats">' +
       stat(selected.length, "Medikamente") +
       stat(iN, "Wechselwirkungen") +
