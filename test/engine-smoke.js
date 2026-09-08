@@ -265,6 +265,29 @@ function ok(name, cond, extra) {
   ok("komplexe Sätze: drugCount == #IDs == #Namen, keine dup/dangling IDs", badComplex.length === 0,
     badComplex.slice(0, 5).map(x => "#" + x.id + "(" + x.drugIds + "/" + x.drugCount + ")").join(", "));
 
+  // --- Patientenprofil-Kategorien: kein toter Schalter, keine Label-Drift ----
+  // (2026-09-08: redundante Kategorie ALTER entfernt, categoryLabel je Kategorie
+  // auf EINE kanonische Schreibweise vereinheitlicht — s. RISK_CATEGORIES.)
+  const catKeys = new Set(MS.RISK_CATEGORIES.map(c => c.key));
+  const risksByCat = {};
+  rawDb.risks.forEach(r => { (risksByCat[r.category] = risksByCat[r.category] || []).push(r); });
+  // (a) jeder Schalter hat mindestens ein hinterlegtes Risiko (Guard ohne Aufrufer = teuerster Fehler)
+  let deadToggles = MS.RISK_CATEGORIES.filter(c => !(risksByCat[c.key] && risksByCat[c.key].length));
+  ok("jeder Profil-Schalter hat >=1 Risiko (kein toter Schalter)", deadToggles.length === 0,
+    deadToggles.map(c => c.key).join(", "));
+  // (b) keine Risiko-Kategorie ohne passenden Schalter (kein verwaister Datensatz wie früher ALTER)
+  let orphanCats = Object.keys(risksByCat).filter(k => !catKeys.has(k));
+  ok("keine Risiko-Kategorie ohne Schalter (kein Waisen-Datensatz)", orphanCats.length === 0,
+    orphanCats.map(k => k + " n=" + risksByCat[k].length).join(", "));
+  // (c) Schalter-Label == DB-categoryLabel, genau EINE Schreibweise je Kategorie
+  let labelDrift = MS.RISK_CATEGORIES.filter(c => {
+    let labels = [...new Set((risksByCat[c.key] || []).map(r => r.categoryLabel))];
+    return labels.length !== 1 || labels[0] !== c.label;
+  });
+  ok("categoryLabel konsistent & == Schalter-Label (keine ASCII-/Doppel-Labels)", labelDrift.length === 0,
+    labelDrift.map(c => c.key + " toggle=\"" + c.label + "\" db=" +
+      JSON.stringify([...new Set((risksByCat[c.key] || []).map(r => r.categoryLabel))])).join("; "));
+
   // --- PZN (Pharmazentralnummer): Prüfziffer + Parsing ----------------------
   // Testvektoren sind rein arithmetisch (mod-11), keine echten Präparate.
   ok("PZN-Prüfziffer: 03110083 gültig", MS.pzn.check("03110083"));

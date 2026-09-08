@@ -39,15 +39,14 @@ window.MediScan = (function () {
   // ---- Patientenprofil: Kategorien der Risikotabelle ------------------------
   // key = category in patient_risks; label = Anzeige; für Profil-Schalter.
   var RISK_CATEGORIES = [
-    { key: "KINDER",           label: "Kind / Jugendliche" },
-    { key: "AELTERE",          label: "Ältere Menschen" },
-    { key: "ALTER",            label: "Ältere (≥ 65 J.)" },
+    { key: "KINDER",           label: "Kinder & Jugendliche" },
+    { key: "AELTERE",          label: "Ältere Menschen (ab 65 J.)" },
     { key: "SCHWANGERSCHAFT",  label: "Schwangerschaft" },
     { key: "STILLZEIT",        label: "Stillzeit" },
     { key: "NIERE",            label: "Niereninsuffizienz" },
     { key: "LEBER",            label: "Leberinsuffizienz" },
-    { key: "BEGLEITERKRANKUNG",label: "Begleiterkrankung" },
-    { key: "GENETIK",          label: "Genetik / Laborwerte" }
+    { key: "BEGLEITERKRANKUNG",label: "Begleiterkrankungen" },
+    { key: "GENETIK",          label: "Genetik & Laborwerte" }
   ];
 
   // ---- Normalisierung -------------------------------------------------------
