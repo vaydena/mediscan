@@ -18,12 +18,24 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
+  // ISO-Datum -> deutsches Format; Tausenderpunkte; Datengrundlage-Zeile aus MS.meta()
+  function deDate(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); return m ? (m[3] + "." + m[2] + "." + m[1]) : String(iso || ""); }
+  function deNum(n) { return String(n == null ? "" : n).replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
+  function dbMetaText() {
+    var m = (MS && MS.meta) ? MS.meta() : null; if (!m) return "";
+    var p = [];
+    if (m.generated) p.push("Stand " + deDate(m.generated));
+    if (m.version) p.push("Version " + m.version);
+    if (m.counts && m.counts.medications) p.push(deNum(m.counts.medications) + " Präparate");
+    if (m.counts && m.counts.interactions) p.push(deNum(m.counts.interactions) + " Wechselwirkungen");
+    return p.join(" · ");
+  }
   function lsGet(k, def) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   var toastT = null;
   function toast(msg) {
     var t = el("ms-toast");
-    if (!t) { t = document.createElement("div"); t.id = "ms-toast"; t.className = "toast"; document.body.appendChild(t); }
+    if (!t) { t = document.createElement("div"); t.id = "ms-toast"; t.className = "toast"; t.setAttribute("role", "status"); t.setAttribute("aria-live", "polite"); document.body.appendChild(t); }
     t.textContent = msg; t.style.opacity = "1";
     clearTimeout(toastT); toastT = setTimeout(function () { t.style.transition = "opacity .4s"; t.style.opacity = "0"; }, 2600);
   }
@@ -666,6 +678,10 @@
     var res = el("results");
     res.hidden = false;
     res.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Tastatur-/Screenreader-Fokus auf die frische Ergebnis-Überschrift setzen
+    // (preventScroll, damit das sanfte Scrollen nicht überschrieben wird).
+    var hd = el("resHeading");
+    if (hd && hd.focus) { try { hd.focus({ preventScroll: true }); } catch (e) { try { hd.focus(); } catch (x) {} } }
   }
 
   function card(sevObj, title, o) {
@@ -736,12 +752,18 @@
 
   function renderResults(r) {
     var iN = r.interactions.length, cN = r.complex.length, rN = r.risks.length;
+    var dups = r.duplicates || [], dN = dups.length;
     // Höchste gefundene Einstufung (ganzes sev-Objekt) – speist das Ergebnis-Banner.
     var worstSev = null;
     r.interactions.concat(r.complex, r.risks).forEach(function (x) { if (!worstSev || x.sev.rank > worstSev.rank) worstSev = x.sev; });
 
     var h = '<div class="card">';
-    h += '<h2>Ergebnis <button class="btn ghost small" id="pdfBtn" style="margin-left:auto;padding:8px 12px">⬇ PDF-Bericht</button></h2>';
+    h += '<div class="res-head">'
+      + '<h2 id="resHeading" tabindex="-1">Ergebnis</h2>'
+      + '<div class="res-actions">'
+      + '<button class="btn ghost small" id="shareBtn" type="button">📤 Für Arzt/Apotheke</button>'
+      + '<button class="btn ghost small" id="pdfBtn" type="button">⬇ PDF-Bericht</button>'
+      + '</div></div>';
     // Gesamt-Banner: berichtet nur, was die Referenzdatenbank enthält (keine eigene
     // klinische Bewertung – Label kommt unverändert aus der Engine).
     if (worstSev && iN + cN + rN > 0) {
@@ -757,10 +779,24 @@
       stat(cN, "Mehrfach") +
       stat(rN, "Risiken") + '</div>';
 
-    if (iN + cN + rN === 0) {
-      h += '<div class="ok-note" style="margin-top:12px">✓ In der hinterlegten Datenbank wurden keine Wechselwirkungen oder Risiken zu dieser Kombination gefunden. Das ist <u>keine</u> Garantie der Unbedenklichkeit – besprechen Sie Ihre Medikation mit Arzt/Apotheke.</div>';
+    if (iN + cN + rN + dN === 0) {
+      h += '<div class="ok-note" style="margin-top:12px">✓ In der hinterlegten Datenbank wurden keine Wechselwirkungen, Risiken oder Doppelungen zu dieser Kombination gefunden. Das ist <u>keine</u> Garantie der Unbedenklichkeit – besprechen Sie Ihre Medikation mit Arzt/Apotheke.</div>';
     }
     h += '</div>';
+
+    // Therapeutische Doppelungen: struktureller Hinweis (gleicher Wirkstoff /
+    // gleiche Wirkstoffgruppe). Bewusst NICHT im klinischen Ergebnis-Banner oben
+    // (keine erfundene Schweregrad-Bewertung), sondern als eigener, klar
+    // gekennzeichneter Block direkt unter der Übersicht.
+    if (dN) {
+      h += '<div class="card"><h2>Mögliche Doppelungen <span class="n">' + dN + '</span></h2>';
+      h += '<p class="small muted" style="margin:-2px 0 10px">Struktureller Hinweis aus den Stammdaten – gleicher Wirkstoff bzw. gleiche Wirkstoffgruppe. Keine klinische Bewertung; ob eine Doppelung gewollt ist, klären Sie bitte mit Arzt oder Apotheke.</p>';
+      dups.forEach(function (d) {
+        var tags = (d.names || []).map(function (nm) { return '<span class="medtag">' + esc(nm) + '</span>'; }).join("");
+        h += card(d.sev, d.title, { medtags: tags, desc: d.description });
+      });
+      h += '</div>';
+    }
 
     if (iN) {
       h += '<div class="card"><h2>Wechselwirkungen <span class="n">' + iN + '</span></h2>';
@@ -793,11 +829,23 @@
     // Platzhalter für die ergänzende, öffentliche FDA-Ebene (wird lazy befüllt).
     h += '<section id="fdaPanel" class="fda-wrap" hidden></section>';
 
-    h += '<div class="disclaimer" role="note" style="margin-top:6px"><b>⚠ Hinweis:</b> Diese Auswertung basiert auf einer hinterlegten Referenzdatenbank und ersetzt keine ärztliche oder pharmazeutische Beratung. Angaben können unvollständig sein.</div>';
+    var metaTxt = dbMetaText();
+    h += '<div class="disclaimer" role="note" style="margin-top:6px"><b>⚠ Hinweis:</b> Diese Auswertung basiert auf einer kuratierten Referenzdatenbank (keine amtliche Arzneimitteldatenbank) und ersetzt keine ärztliche oder pharmazeutische Beratung. Angaben können unvollständig sein.'
+      + (metaTxt ? '<br><span class="datasource">Datengrundlage: ' + esc(metaTxt) + '</span>' : '')
+      + '</div>';
 
     el("results").innerHTML = h;
     var pdf = el("pdfBtn");
     if (pdf) pdf.onclick = function () { loadFDA().then(function () { makePDF(r); }, function () { makePDF(r); }); };
+    // „Für Arzt/Apotheke" teilen: bevorzugt die PDF-Datei über die Web-Share-API,
+    // sonst nur Text, sonst in die Zwischenablage. Bewusst OHNE loadFDA-Umweg, damit
+    // die Nutzergeste für navigator.share erhalten bleibt (ein await verliert sie).
+    var sh = el("shareBtn");
+    if (sh) {
+      var canShare = !!navigator.share || !!(navigator.clipboard && navigator.clipboard.writeText);
+      if (!canShare) sh.hidden = true;
+      else sh.onclick = function () { shareReport(r); };
+    }
     ensureFDA();
   }
   function stat(n, label) { return '<div class="stat"><b>' + n + '</b><span>' + esc(label) + '</span></div>'; }
@@ -811,7 +859,9 @@
       .replace(/[^\x00-\xFF]/g, "");
   }
   var SEVRGB = { 0: [117, 117, 117], 1: [56, 142, 60], 2: [245, 124, 0], 3: [229, 57, 53], 4: [183, 28, 28] };
-  function makePDF(r) {
+  // onDoc(doc, fn) optional: statt zu speichern das fertige jsPDF-Dokument herausgeben
+  // (wird vom Teilen-Weg genutzt, um dieselbe PDF als Datei zu verschicken).
+  function makePDF(r, onDoc) {
     if (!window.jspdf || !window.jspdf.jsPDF) { toast("PDF-Bibliothek nicht geladen."); return; }
     var doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
     var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
@@ -850,6 +900,8 @@
       var labs = profile.map(function (k) { var c = MS.RISK_CATEGORIES.filter(function (x) { return x.key === k; })[0]; return c ? c.label : k; });
       y += 4; line("Patientenprofil: " + labs.join(", "), 10, "italic", [90, 90, 90]);
     }
+    var metaTxt = dbMetaText();
+    if (metaTxt) { y += 4; line("Datengrundlage: kuratierte Referenzdatenbank (keine amtliche Arzneimitteldatenbank) · " + metaTxt, 8.5, "italic", [120, 120, 120]); }
     y += 6;
 
     function section(title, items, render) {
@@ -882,6 +934,9 @@
       doc.setDrawColor(235, 242, 240); ensure(2); doc.line(M + 10, y - 4, M + CW, y - 4);
     }
 
+    section("Mögliche Doppelungen", r.duplicates || [], function (d) {
+      block(d.sev, d.title, (d.names || []).join(" + "), d.description, null, null);
+    });
     section("Wechselwirkungen", r.interactions, function (it) {
       block(it.sev, it.title, it.drug1 + " + " + it.drug2, it.description, null, null);
     });
@@ -894,8 +949,8 @@
       block(rk.sev, rk.title, pair, desc, rk.recommendation, null);
     });
 
-    if (r.interactions.length + r.complex.length + r.risks.length === 0) {
-      line("In der hinterlegten Datenbank wurden keine Wechselwirkungen oder Risiken zu dieser Kombination gefunden. Dies ist keine Garantie der Unbedenklichkeit.", 10, "normal", [40, 40, 40], 6);
+    if (r.interactions.length + r.complex.length + r.risks.length + (r.duplicates ? r.duplicates.length : 0) === 0) {
+      line("In der hinterlegten Datenbank wurden keine Wechselwirkungen, Risiken oder Doppelungen zu dieser Kombination gefunden. Dies ist keine Garantie der Unbedenklichkeit.", 10, "normal", [40, 40, 40], 6);
     }
 
     // Ergänzende, öffentliche FDA-Angaben (nur falls bereits geladen; englisch, unverändert).
@@ -931,9 +986,84 @@
     foot();
 
     var fn = "MediScan_Analyse_" + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + "_" + pad(now.getHours()) + pad(now.getMinutes()) + ".pdf";
+    if (typeof onDoc === "function") { onDoc(doc, fn); return; }
     doc.save(fn);
   }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
+
+  // ---- Bericht teilen („Für Arzt/Apotheke") --------------------------------
+  // Kompakte Text-Zusammenfassung des Ergebnisses (für Web-Share-Text bzw. als
+  // Zwischenablage-Rückfall). Nur, was in der Referenzdatenbank steht – keine Wertung.
+  function reportText(r) {
+    var L = [];
+    L.push("MediScan – Wechselwirkungs-Analyse");
+    var mt = dbMetaText(); if (mt) L.push(mt);
+    L.push("");
+    var meds = selected.map(function (id) { var m = MS.medById(id); return m ? (m.name + " (" + m.activeIngredient + ")") : ("#" + id); });
+    L.push("Medikamente (" + meds.length + "):");
+    meds.forEach(function (m) { L.push("• " + m); });
+    if (profile.length) {
+      var labs = profile.map(function (k) { var c = MS.RISK_CATEGORIES.filter(function (x) { return x.key === k; })[0]; return c ? c.label : k; });
+      L.push("Patientenprofil: " + labs.join(", "));
+    }
+    L.push("");
+    var iN = r.interactions.length, cN = r.complex.length, rN = r.risks.length, dN = (r.duplicates || []).length;
+    var worst = null;
+    r.interactions.concat(r.complex, r.risks).forEach(function (x) { if (!worst || x.sev.rank > worst.rank) worst = x.sev; });
+    if (worst && iN + cN + rN > 0) L.push("Höchste Einstufung: " + worst.label + " (" + (iN + cN + rN) + (iN + cN + rN === 1 ? " Eintrag" : " Einträge") + ")");
+    L.push("Wechselwirkungen: " + iN + " · Mehrfach: " + cN + " · Patientenrisiken: " + rN + " · Mögliche Doppelungen: " + dN);
+    L.push("");
+    function add(title, items, fmt) {
+      if (!items || !items.length) return;
+      L.push(title + ":");
+      items.forEach(function (it) { L.push("– [" + it.sev.label + "] " + fmt(it)); });
+      L.push("");
+    }
+    add("Mögliche Doppelungen", r.duplicates || [], function (d) { return d.title + " (" + (d.names || []).join(" + ") + ")"; });
+    add("Wechselwirkungen", r.interactions, function (it) { return it.drug1 + " + " + it.drug2 + ": " + it.title; });
+    add("Mehrfach-Wechselwirkungen", r.complex, function (c) { return splitNames(c.drugNames).join(" + ") + ": " + c.title; });
+    add("Individuelle Patientenrisiken", r.risks, function (rk) { return rk.medName + (rk.categoryLabel ? " (" + rk.categoryLabel + ")" : "") + ": " + rk.title; });
+    L.push("Hinweis: MediScan ist ein Informationswerkzeug und ersetzt keine ärztliche oder pharmazeutische Beratung.");
+    return L.join("\n");
+  }
+  function copyReport(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { toast("Bericht in die Zwischenablage kopiert."); },
+        function () { toast("Teilen wird von diesem Gerät nicht unterstützt."); });
+    } else { toast("Teilen wird von diesem Gerät nicht unterstützt."); }
+  }
+  function shareTextOrCopy(title, text) {
+    if (navigator.share) {
+      navigator.share({ title: title, text: text }).catch(function (e) {
+        if (e && e.name === "AbortError") return;   // Nutzer hat abgebrochen
+        copyReport(text);
+      });
+    } else { copyReport(text); }
+  }
+  function shareReport(r) {
+    var title = "MediScan – Wechselwirkungs-Analyse";
+    var text = reportText(r);
+    // 1) Bevorzugt die PDF-Datei teilen (bestes Ergebnis für Praxis/Apotheke).
+    if (navigator.share && navigator.canShare && window.File) {
+      makePDF(r, function (doc, fn) {
+        try {
+          var file = new File([doc.output("blob")], fn, { type: "application/pdf" });
+          if (navigator.canShare({ files: [file] })) {
+            navigator.share({ files: [file], title: title, text: text }).catch(function (e) {
+              if (e && e.name === "AbortError") return;
+              shareTextOrCopy(title, text);
+            });
+            return;
+          }
+        } catch (e) {}
+        shareTextOrCopy(title, text);   // Datei-Freigabe nicht möglich → Text
+      });
+      return;
+    }
+    // 2) Kein Datei-Share → Text teilen bzw. kopieren.
+    shareTextOrCopy(title, text);
+  }
 
   // ---- Verdrahtung ----------------------------------------------------------
   function wire() {

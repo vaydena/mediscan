@@ -369,6 +369,61 @@ function ok(name, cond, extra) {
   ok("FDA: keine deutschen MediScan-Wertungen im Originaltext", deInText.length === 0, deInText.slice(0, 3).join(","));
   console.log("     FDA-Abdeckung:", withText.length, "von", fdaKeys.length, "Meds mit Original-Text");
 
+  // --- Therapeutische Doppelung (duplicatesFor) ------------------------------
+  // Rein STRUKTURELLER Hinweis aus den Stammdaten, keine klinische Wertung:
+  // (A) derselbe Wirkstoff über >= 2 unterschiedliche Präparate,
+  // (B) >= 2 unterschiedliche Wirkstoffe derselben Kategorie.
+  // Bewusst NICHT im klinischen Banner; MDR-sicher (nur DB-Felder activeIngredient/category).
+  const dupBy = (ids) => MS.duplicatesFor(ids);
+
+  // (A) gleicher Wirkstoff: Aspirin + ASS = 1 Wirkstoff-Doppelung (Acetylsalicylsäure)
+  const assIds = medsByIng("Acetylsalicylsäure");
+  const dAss = dupBy(assIds);
+  ok("Doppelung A: Aspirin+ASS => genau 1 Treffer",
+    dAss.length === 1, "n=" + dAss.length + " ids=" + assIds.join(","));
+  ok("Doppelung A: Typ 'ingredient', Wirkstoff Acetylsalicylsäure",
+    !!dAss[0] && dAss[0].type === "ingredient" && /acetylsalicyl/i.test(dAss[0].ingredient || ""),
+    dAss[0] && dAss[0].type + "/" + dAss[0].ingredient);
+  ok("Doppelung A: nennt beide Präparate (Aspirin, ASS)",
+    !!dAss[0] && dAss[0].names.indexOf("Aspirin") !== -1 && dAss[0].names.indexOf("ASS") !== -1,
+    dAss[0] && dAss[0].names.join(" + "));
+  ok("Doppelung A: Schweregrad rank 2 (dezent, nicht klinisch eskaliert)",
+    !!dAss[0] && !!dAss[0].sev && dAss[0].sev.rank === 2, dAss[0] && dAss[0].sev && dAss[0].sev.rank);
+  // String-IDs (kommen so aus dem DOM) müssen genauso greifen (parseInt-Pfad)
+  ok("Doppelung A: greift auch bei String-IDs (DOM-Pfad)",
+    dupBy(assIds.map(String)).length === 1);
+
+  // Ibuprofen-Familie: 4 Marken, 1 Wirkstoff => 1 Treffer über mehrere Namen
+  const ibuIds = medsByIng("Ibuprofen");
+  const dIbu = dupBy(ibuIds);
+  ok("Doppelung A: Ibuprofen-Familie => 1 Treffer über mehrere Marken",
+    dIbu.length === 1 && dIbu[0].type === "ingredient" &&
+    dIbu[0].names.indexOf("Ibuprofen") !== -1 && dIbu[0].names.indexOf("Nurofen") !== -1,
+    dIbu[0] ? dIbu[0].names.join(" + ") : "n=0");
+
+  // (B) gleiche Wirkstoffgruppe: zwei VERSCHIEDENE SSRI => 1 Klassen-Doppelung
+  const ssriIds = [oneIng("Escitalopram"), oneIng("Sertralin")];
+  const dSsri = dupBy(ssriIds);
+  ok("Doppelung B: zwei SSRI (Escitalopram+Sertralin) => genau 1 Treffer",
+    dSsri.length === 1, "n=" + dSsri.length);
+  ok("Doppelung B: Typ 'class', Kategorie SSRI (keine Wirkstoff-Doppelung)",
+    !!dSsri[0] && dSsri[0].type === "class" && dSsri[0].category === "SSRI",
+    dSsri[0] && dSsri[0].type + "/" + dSsri[0].category);
+  ok("Doppelung B: Schweregrad rank 1 (am dezentesten)",
+    !!dSsri[0] && !!dSsri[0].sev && dSsri[0].sev.rank === 1, dSsri[0] && dSsri[0].sev && dSsri[0].sev.rank);
+
+  // Keine Fehlalarme: Einzelmedikament + dieselbe ID doppelt (seenId-Dedup, kein Selbst-Treffer)
+  ok("Doppelung: Einzelmedikament => 0 Treffer",
+    dupBy([oneIng("Metformin")]).length === 0);
+  ok("Doppelung: identische ID doppelt => 0 Treffer (Dedup)",
+    dupBy([assIds[0], assIds[0]]).length === 0);
+
+  // Sortierung + Ko-Existenz: Wirkstoff-Doppelung (rank2) VOR Klassen-Doppelung (rank1)
+  const dMix = dupBy(assIds.concat(ssriIds));
+  ok("Doppelung: A und B koexistieren, korrekt sortiert (ingredient vor class)",
+    dMix.length === 2 && dMix[0].type === "ingredient" && dMix[1].type === "class",
+    dMix.map(d => d.type).join(" > "));
+
   console.log("\n" + (fail === 0 ? "ALLE GRÜN" : fail + " FEHLGESCHLAGEN") + "  (" + pass + " ok, " + fail + " fail)");
   process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error("CRASH", e); process.exit(2); });

@@ -62,6 +62,9 @@
 /* ---- Basis ---- */
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
+/* Schriftgrößen-Umschalter (A / A+ / A++): skaliert die rem-Basis global */
+html[data-fs="l"]{font-size:112.5%}   /* 16 -> 18 px */
+html[data-fs="xl"]{font-size:125%}    /* 16 -> 20 px */
 body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
   color:var(--ink);background:var(--bg);line-height:1.55;
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
@@ -83,10 +86,16 @@ img{max-width:100%}
 .wrap{max-width:var(--maxw);margin:0 auto;padding:0 16px}
 main#app{padding-bottom:calc(34px + env(safe-area-inset-bottom,0px))}
 /* Sticky-Header beim programmatischen Scrollen (go=scan, Ergebnisse) einrechnen */
-.card,#results,#pane-scan{scroll-margin-top:76px}
+.card,#results,#pane-scan,main#app{scroll-margin-top:76px}
 
 /* Tastatur-Fokus deutlich, Maus-Fokus ruhig */
 :focus-visible{outline:3px solid rgba(14,169,154,.55);outline-offset:2px;border-radius:6px}
+
+/* „Zum Inhalt springen" – für Tastatur/Screenreader, sichtbar erst bei Fokus */
+.skip{position:absolute;left:8px;top:-100px;z-index:100;background:var(--card);color:var(--ink);
+  border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-weight:700;
+  text-decoration:none;box-shadow:var(--shadow);transition:top .16s ease}
+.skip:focus{top:calc(8px + env(safe-area-inset-top,0px))}
 
 /* ---- Kopfleiste ---- */
 .topbar{position:sticky;top:0;z-index:40;background:var(--topbar);color:#fff;
@@ -103,6 +112,33 @@ main#app{padding-bottom:calc(34px + env(safe-area-inset-bottom,0px))}
   padding:8px 13px;border-radius:999px;border:1px solid rgba(255,255,255,.16);
   transition:background .15s,border-color .15s}
 .topbar a.nav:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3)}
+/* Schriftgrößen-Umschalter (A / A+ / A++) */
+.fs-switch{display:flex;align-items:center;gap:2px;background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:2px}
+.fs-switch button{border:0;background:transparent;color:#eafffb;cursor:pointer;font-family:inherit;
+  font-weight:800;line-height:1;padding:6px 9px;border-radius:999px;transition:background .15s,color .15s}
+.fs-switch button:nth-child(1){font-size:.78rem}
+.fs-switch button:nth-child(2){font-size:.95rem}
+.fs-switch button:nth-child(3){font-size:1.12rem}
+.fs-switch button[aria-pressed="true"]{background:#fff;color:var(--petrol-d)}
+.fs-switch button:hover{background:rgba(255,255,255,.18)}
+.fs-switch button[aria-pressed="true"]:hover{background:#fff}
+/* Sehr schmale Geräte: Untertitel im Logo ausblenden, damit der Umschalter Platz hat */
+@media (max-width:400px){
+  .brand small{display:none}
+  .brand{gap:8px}
+  .brand b{font-size:1.06rem}
+  .topbar .wrap{gap:8px}
+  .topbar a.nav{padding:8px 11px}
+  .fs-switch button{padding:6px 7px}
+}
+/* Sehr kleine Geräte (≤340px, z. B. iPhone SE 1): redundanten „Start"-Link
+   ausblenden (das Logo verlinkt ohnehin zur Startseite) → kein Horizontal-
+   Scroll bei 320px CSS-Pixeln (WCAG 1.4.10 Reflow); Schriftgrößen-Umschalter
+   bleibt voll sichtbar. */
+@media (max-width:340px){
+  .topbar a.nav{display:none}
+}
 
 /* ---- Buttons ---- */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -154,6 +190,13 @@ main#app{padding-bottom:calc(34px + env(safe-area-inset-bottom,0px))}
 .disclaimer{background:var(--warnbg);border:1px solid var(--warnln);border-radius:14px;
   padding:12px 15px;margin:14px 0;font-size:.88rem;line-height:1.55;color:var(--amber-ink)}
 .disclaimer b{color:var(--warn)}
+/* Datengrundlage-Zeile: bewusst voller Farbkontrast (kein opacity), nur kleiner gesetzt */
+.datasource{display:inline-block;margin-top:6px;font-size:.8rem;color:var(--amber-ink)}
+
+/* ---- Ergebnis-Kopf mit Aktionen (Teilen / PDF) ---- */
+.res-head{display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap;margin-bottom:12px}
+.res-head h2{margin:0}
+.res-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
 
 /* ---- Eingabe-Umschalter (Altbestand, wird aktuell nicht gerendert) ---- */
 .seg{display:flex;background:var(--soft);border-radius:13px;padding:4px;gap:4px;margin-bottom:14px}

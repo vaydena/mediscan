@@ -27,6 +27,14 @@ window.addEventListener("beforeinstallprompt", function (e) {
 });
 window.addEventListener("appinstalled", function () { window.__msInstalled = true; });
 </script>
+<script>
+/* Schriftgröße so früh wie möglich anwenden (vor dem ersten Paint), damit die
+   gewählte Größe ohne Umschalt-Flackern greift. Wert: "" (normal), "l" oder "xl". */
+try {
+  var __msFs = localStorage.getItem("ms.fontscale");
+  if (__msFs === "l" || __msFs === "xl") document.documentElement.setAttribute("data-fs", __msFs);
+} catch (e) {}
+</script>
 <style>
 /* ---- Zugangs-Sperre (Bestätigungscode) ----
    Nutzt die Design-Tokens aus mediscan.css (mit Fallbacks) und folgt damit
@@ -96,6 +104,7 @@ body.ms-locked{overflow:hidden}
 </style>
 </head>
 <body class="ms-app">
+<a class="skip" href="#app">Zum Inhalt springen</a>
 <!-- ===== Zugangs-Sperre: Freischaltung per Bestätigungscode ===== -->
 <div id="ms-gate" role="dialog" aria-live="polite" aria-label="MediScan freischalten">
   <div class="box">
@@ -232,11 +241,41 @@ body.ms-locked{overflow:hidden}
       <span><b>MediScan</b><small>Wechselwirkungs-Check</small></span>
     </a>
     <span class="sp"></span>
+    <div class="fs-switch" id="fsSwitch" role="group" aria-label="Schriftgröße">
+      <button type="button" data-fs="" aria-pressed="true" title="Normale Schrift" aria-label="Normale Schriftgröße">A</button>
+      <button type="button" data-fs="l" aria-pressed="false" title="Größere Schrift" aria-label="Größere Schrift">A+</button>
+      <button type="button" data-fs="xl" aria-pressed="false" title="Sehr große Schrift" aria-label="Sehr große Schrift">A++</button>
+    </div>
     <a class="nav" href="index.html">Start</a>
   </div>
 </header>
+<script>
+/* Schriftgrößen-Umschalter: self-contained, unabhängig von der (evtl. SW-gecachten)
+   App-JS. Setzt data-fs auf <html>, persistiert die Wahl und spiegelt aria-pressed. */
+(function () {
+  var root = document.documentElement, KEY = "ms.fontscale";
+  var grp = document.getElementById("fsSwitch"); if (!grp) return;
+  var btns = grp.querySelectorAll("button[data-fs]");
+  function cur() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
+  function paint(v) {
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute("aria-pressed", btns[i].getAttribute("data-fs") === v ? "true" : "false");
+    }
+  }
+  function apply(v) {
+    if (v === "l" || v === "xl") root.setAttribute("data-fs", v);
+    else { root.removeAttribute("data-fs"); v = ""; }
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+    paint(v);
+  }
+  paint(cur());
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () { apply(this.getAttribute("data-fs")); });
+  }
+})();
+</script>
 
-<main class="wrap" id="app">
+<main class="wrap" id="app" tabindex="-1">
   <div class="disclaimer" role="note">
     <b>⚠ Wichtiger Hinweis:</b> MediScan dient ausschließlich der Information und ersetzt
     <b>keine ärztliche oder pharmazeutische Beratung</b>. Treffen Sie keine Therapieentscheidung

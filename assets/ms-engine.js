@@ -413,9 +413,75 @@ window.MediScan = (function () {
     return out;
   }
 
+  // ---- Therapeutische Doppelung (rein strukturell, keine erfundenen Daten) ---
+  // Erkennt zwei Situationen, die die Paar-Wechselwirkungslogik bewusst NICHT
+  // abdeckt (interactionsFor überspringt a===b, gleicher Wirkstoff):
+  //   (A) mehrere gewählte Präparate mit DEMSELBEN Wirkstoff (z. B. Aspirin +
+  //       ASS, oder ein Wirkstoff, der zusätzlich in einem Kombipräparat steckt)
+  //       → unbeabsichtigte Mehrfach-Dosierung möglich.
+  //   (B) mehrere Präparate DERSELBEN Wirkstoffgruppe (category), aber mit
+  //       unterschiedlichen Wirkstoffen (z. B. zwei NSAR, zwei SSRI).
+  // Ausgewertet werden AUSSCHLIESSLICH vorhandene DB-Felder (activeIngredient,
+  // category); gemeldet wird neutral ("mit Arzt/Apotheke abklären"). Keine
+  // erfundenen Schweregrade, keine klinische Bewertung – daher eigene, bewusst
+  // zurückhaltende sev-Objekte (rank 2 = Wirkstoff doppelt, rank 1 = gleiche Gruppe).
+  var SEV_DUP_ING   = { label: "Wirkstoff doppelt",       color: "#F57C00", bg: "#FFF3E0", rank: 2 };
+  var SEV_DUP_CLASS = { label: "Gleiche Wirkstoffgruppe", color: "#388E3C", bg: "#E8F5E9", rank: 1 };
+  function duplicatesFor(medIds) {
+    // eindeutige, auflösbare Auswahl aufbereiten
+    var seenId = {}, sel = [];
+    (medIds || []).forEach(function (raw) {
+      var id = parseInt(raw, 10);
+      if (isNaN(id) || seenId[id]) return; seenId[id] = 1;
+      var m = medById(id); if (!m) return;
+      sel.push({ id: id, name: m.name, ingN: norm(m.activeIngredient),
+                 ingDisp: m.activeIngredient || "", cat: m.category || "" });
+    });
+    var out = [];
+
+    // (A) gleicher Wirkstoff über ≥ 2 VERSCHIEDENE Präparate
+    var byIng = {};
+    sel.forEach(function (s) { if (s.ingN) (byIng[s.ingN] = byIng[s.ingN] || []).push(s); });
+    Object.keys(byIng).forEach(function (k) {
+      var g = byIng[k], names = [], nseen = {};
+      g.forEach(function (s) { if (!nseen[s.name]) { nseen[s.name] = 1; names.push(s.name); } });
+      if (names.length < 2) return;               // nur echte Doppelung (≥2 unterschiedliche Präparate)
+      out.push({
+        kind: "dup", type: "ingredient", severity: SEV_DUP_ING.rank, sev: SEV_DUP_ING,
+        title: "Wirkstoff-Doppelung: " + (g[0].ingDisp || k),
+        ingredient: g[0].ingDisp || k, names: names,
+        description: "Diese Präparate enthalten denselben Wirkstoff. Mehrere Präparate mit gleichem Wirkstoff können die Gesamtdosis unbeabsichtigt erhöhen. Bitte mit Arzt oder Apotheke abklären, ob das so gewollt ist."
+      });
+    });
+
+    // (B) gleiche Wirkstoffgruppe (category) über ≥ 2 UNTERSCHIEDLICHE Wirkstoffe
+    var byCat = {};
+    sel.forEach(function (s) {
+      if (!s.cat || !s.ingN) return;
+      var c = (byCat[s.cat] = byCat[s.cat] || { ings: {}, order: [] });
+      if (!c.ings[s.ingN]) { c.ings[s.ingN] = s.name; c.order.push(s.ingN); }
+    });
+    Object.keys(byCat).forEach(function (cat) {
+      var c = byCat[cat];
+      if (c.order.length < 2) return;             // ≥2 unterschiedliche Wirkstoffe derselben Gruppe
+      var names = c.order.map(function (ing) { return c.ings[ing]; });
+      out.push({
+        kind: "dup", type: "class", severity: SEV_DUP_CLASS.rank, sev: SEV_DUP_CLASS,
+        title: "Mehrere Wirkstoffe der Gruppe „" + cat + "“",
+        category: cat, names: names,
+        description: "Diese Präparate gehören derselben Wirkstoffgruppe an. Bitte mit Arzt oder Apotheke abklären, ob die gemeinsame Anwendung beabsichtigt ist."
+      });
+    });
+
+    // Wirkstoff-Doppelungen (rank 2) zuerst, dann Wirkstoffgruppen (rank 1)
+    out.sort(function (a, b) { return b.sev.rank - a.sev.rank; });
+    return out;
+  }
+
   // ---- Voll-Analyse in einem Aufruf ----------------------------------------
   function analyze(medIds, activeCategories) {
     return {
+      duplicates: duplicatesFor(medIds),
       interactions: interactionsFor(medIds),
       complex: complexFor(medIds),
       risks: risksFor(medIds, activeCategories || [])
@@ -541,6 +607,7 @@ window.MediScan = (function () {
     load: load, meta: meta, medById: medById,
     detect: detect, search: search,
     interactionsFor: interactionsFor, complexFor: complexFor, risksFor: risksFor,
+    duplicatesFor: duplicatesFor,
     analyze: analyze, sev: sev, norm: norm,
     pzn: { parse: pznParse, check: pznCheck, pad8: pad8 },
     ics: { build: buildICS, escape: icsEscape, fold: icsFold, validTime: validTime },
