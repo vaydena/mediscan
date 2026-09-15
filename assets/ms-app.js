@@ -438,6 +438,31 @@
     }
     throw lastErr || new Error("OCR-Worker nicht startbar");
   }
+
+  // Vorwärmen der OCR-Kette. Wird beim ANTIPPEN von „Foto aufnehmen"/„Aus
+  // Galerie …" ausgelöst – also parallel zum OS-Bildpicker, der den Nutzer
+  // mehrere Sekunden kostet. In dieser Zeit werden Skript + Worker + WASM-Core
+  // + ~15 MB deu.traineddata in den dauerhaften OCR-Cache geladen. Dadurch hängt
+  // AUCH der ERSTE Scan einer Sitzung nicht mehr an einem Just-in-time-CDN-Abruf
+  // im Moment der Texterkennung – dem einzigen verbliebenen Rest-Ausfallpunkt
+  // nach dem SW-Cache-Fix. Rein additiv: der Scan-Pfad (decodeImageFile →
+  // runOCR) bleibt UNVERÄNDERT und findet die Teile bereits im Cache (schneller
+  // + robuster). Best-effort – jeder Fehler wird verschluckt, der reguläre Scan
+  // hat weiterhin seine eigenen 3 Wiederholungen. Der Wegwerf-Worker dient nur
+  // dem Befüllen des Caches und wird sofort wieder freigegeben.
+  var ocrWarmed = false;
+  function warmOCR() {
+    if (ocrWarmed) return;
+    ocrWarmed = true;
+    loadTesseract().then(function () {
+      return startOCRWorker();
+    }).then(function (w) {
+      try { w.terminate(); } catch (e) {}
+    }).catch(function () {
+      ocrWarmed = false; // beim nächsten Antippen erneut versuchen
+    });
+  }
+
   function showOCR(on) { el("ocrbox").hidden = !on; }
   function setBar(pct, msg) { el("ocrbar").style.width = pct + "%"; if (msg) el("ocrmsg").textContent = msg; }
   // Zeigt (bei Nichttreffer) den tatsächlich erkannten Rohtext an, damit der
@@ -1210,7 +1235,7 @@
     function wirePhotoInput(btnId, inputId) {
       var btn = el(btnId), inp = el(inputId);
       if (!btn || !inp) return;
-      btn.addEventListener("click", function () { try { inp.click(); } catch (x) {} });
+      btn.addEventListener("click", function () { warmOCR(); try { inp.click(); } catch (x) {} });
       inp.addEventListener("change", function (e) {
         var f = e.target.files && e.target.files[0];
         try { e.target.value = ""; } catch (x) {} // dasselbe Motiv erneut wählen erlauben

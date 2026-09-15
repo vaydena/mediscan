@@ -1,7 +1,7 @@
 /* MediScan – Service Worker (Offline-Shell + Referenzdatenbank).
  * Bei App-Änderungen VERSION erhöhen → alter Cache wird verworfen.
  */
-var VERSION = "ms-v1-2026-09-15-30";
+var VERSION = "ms-v1-2026-09-15-31";
 var CACHE = "mediscan-" + VERSION;
 /* Große, versionierte (unveränderliche) OCR-Abhängigkeiten (Tesseract-Kette)
  * getrennt & dauerhaft halten – NICHT bei jedem App-Update mit-verworfen, sonst
