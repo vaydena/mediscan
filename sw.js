@@ -1,8 +1,12 @@
 /* MediScan – Service Worker (Offline-Shell + Referenzdatenbank).
  * Bei App-Änderungen VERSION erhöhen → alter Cache wird verworfen.
  */
-var VERSION = "ms-v1-2026-09-15-29";
+var VERSION = "ms-v1-2026-09-15-30";
 var CACHE = "mediscan-" + VERSION;
+/* Große, versionierte (unveränderliche) OCR-Abhängigkeiten (Tesseract-Kette)
+ * getrennt & dauerhaft halten – NICHT bei jedem App-Update mit-verworfen, sonst
+ * würde bei jeder VERSION-Erhöhung erneut ~15 MB deu.traineddata geladen. */
+var OCR_CACHE = "mediscan-ocr-v1";
 
 /* Alles, was die App offline braucht (inkl. der 1,4-MB-Referenz-DB und jsPDF). */
 var SHELL = [
@@ -40,7 +44,7 @@ self.addEventListener("install", function (e) {
 self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.map(function (k) { if (k !== CACHE) return caches.delete(k); }));
+      return Promise.all(keys.map(function (k) { if (k !== CACHE && k !== OCR_CACHE) return caches.delete(k); }));
     }).then(function () { return self.clients.claim(); })
   );
 });
@@ -69,7 +73,34 @@ self.addEventListener("fetch", function (e) {
 
   var url;
   try { url = new URL(req.url); } catch (x) { return; }
-  // Fremd-Origin (z. B. Tesseract-CDN) nicht abfangen – online laden lassen.
+
+  // OCR-Abhängigkeiten (Tesseract-Kette) liegen ALLE auf cdn.jsdelivr.net:
+  //   tesseract.js@5.1.1/dist/tesseract.min.js   (Haupt-Skript)
+  //   tesseract.js@v5.1.1/dist/worker.min.js     (Worker)
+  //   tesseract.js-core@v5.1.1/…-simd-lstm.wasm.js (WASM-Core)
+  //   @tesseract.js-data/deu/…/deu.traineddata.gz  (Sprachdaten)
+  // Diese versionierten, unveränderlichen Dateien cache-first bedienen →
+  // nach dem ersten Online-Scan funktioniert die Texterkennung auch bei
+  // CDN-Aussetzern/offline zuverlässig (Ursache der „2 von 8: gar nichts
+  // erkannt"-Fehlläufe: jeder Scan hing bislang an einem Live-CDN-Fetch).
+  // Auch OPAKE Antworten (no-cors, z. B. importScripts der WASM-Core im
+  // Worker) werden gespeichert. Persistenter, versionsunabhängiger Cache.
+  if (url.hostname === "cdn.jsdelivr.net") {
+    e.respondWith(
+      caches.match(req).then(function (r) {
+        return r || fetch(req).then(function (resp) {
+          if (resp && (resp.ok || resp.type === "opaque")) {
+            var cp = resp.clone();
+            caches.open(OCR_CACHE).then(function (c) { c.put(req, cp); });
+          }
+          return resp;
+        });
+      })
+    );
+    return;
+  }
+
+  // Sonstige Fremd-Origins nicht abfangen – online laden lassen.
   if (url.origin !== self.location.origin) return;
 
   // Navigationen: erst Netz, dann App-Shell aus dem Cache (Offline-Fallback).

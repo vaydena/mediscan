@@ -385,14 +385,58 @@
   }
 
   // ---- OCR (Tesseract, faul geladen) ----------------------------------------
-  function loadTesseract() {
-    if (window.Tesseract) return Promise.resolve();
+  // Tesseract-Script laden – mit Wiederholung. Ein einzelner CDN-/Netzaussetzer
+  // beim Scriptabruf ist die Hauptursache für „gar nichts erkannt": ohne Script
+  // wirft runOCR sofort. crossOrigin=anonymous liefert eine saubere CORS-Antwort,
+  // die der Service-Worker cachen kann → weitere Scans laufen offline.
+  function injectTesseractScript() {
     return new Promise(function (res, rej) {
       var s = document.createElement("script");
-      s.src = TESS_CDN; s.async = true;
-      s.onload = res; s.onerror = function () { rej(new Error("CDN")); };
+      s.src = TESS_CDN; s.async = true; s.crossOrigin = "anonymous";
+      s.onload = function () { res(); };
+      s.onerror = function () { try { s.remove(); } catch (e) {} rej(new Error("CDN")); };
       document.head.appendChild(s);
     });
+  }
+  async function loadTesseract() {
+    if (window.Tesseract) return;
+    var lastErr = null;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await new Promise(function (r) { setTimeout(r, 400 * attempt); });
+      try { await injectTesseractScript(); } catch (e) { lastErr = e; }
+      if (window.Tesseract) return;
+    }
+    throw lastErr || new Error("Tesseract nicht ladbar");
+  }
+
+  // OCR-Worker aufbauen (lädt worker.min.js + WASM-Core + deu.traineddata vom
+  // CDN) – ebenfalls mit Wiederholung, denn auch diese Abrufe können vereinzelt
+  // scheitern. Wörterbuch AUS schon bei der Initialisierung: load_system_dawg/
+  // load_freq_dawg sind INIT-ONLY und werden per setParameters in Tesseract v5
+  // still ignoriert (Warnung „can only be set during initialization") – daher als
+  // 4. Argument (config) an createWorker. Nach dem ersten Erfolg cacht der
+  // Service-Worker die Teile → folgende Scans starten offline.
+  async function startOCRWorker() {
+    var lastErr = null;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await new Promise(function (r) { setTimeout(r, 500 * attempt); });
+      var w = null;
+      try {
+        w = await window.Tesseract.createWorker("deu", 1, {
+          logger: function (m) {
+            if (m.status === "recognizing text") setBar(12 + Math.round(m.progress * 86), "Text wird erkannt … " + Math.round(m.progress * 100) + "%");
+          }
+        }, {
+          load_system_dawg: "0",
+          load_freq_dawg: "0"
+        });
+        return w;
+      } catch (e) {
+        lastErr = e;
+        if (w) { try { await w.terminate(); } catch (x) {} }
+      }
+    }
+    throw lastErr || new Error("OCR-Worker nicht startbar");
   }
   function showOCR(on) { el("ocrbox").hidden = !on; }
   function setBar(pct, msg) { el("ocrbar").style.width = pct + "%"; if (msg) el("ocrmsg").textContent = msg; }
@@ -481,19 +525,13 @@
       setBar(6, "Sprachpaket wird geladen …");
       await loadTesseract();
       setBar(10, "Texterkennung startet …");
-      worker = await window.Tesseract.createWorker("deu", 1, {
-        logger: function (m) {
-          if (m.status === "recognizing text") setBar(12 + Math.round(m.progress * 86), "Text wird erkannt … " + Math.round(m.progress * 100) + "%");
-        }
-      });
-      // Wörterbuch AUS: verhindert, dass Tesseract Wirkstoff-/Markennamen zu
-      // deutschen Wörterbuchwörtern „korrigiert" (z. B. Ibuprofen). Layout: ein
-      // zusammenhängender Textblock (Packungsaufdruck), Wort-Zwischenräume erhalten.
+      worker = await startOCRWorker();
+      // Laufzeit-Parameter (NICHT init-only): Layout = ein zusammenhängender
+      // Textblock (Packungsaufdruck / Planzeile), Wort-Zwischenräume erhalten.
+      // (Wörterbuch AUS passiert bereits in startOCRWorker bei der Init.)
       try {
         await worker.setParameters({
           tessedit_pageseg_mode: "6",
-          load_system_dawg: "0",
-          load_freq_dawg: "0",
           preserve_interword_spaces: "1"
         });
       } catch (e) { /* ältere Tesseract-Version ohne setParameters → Default */ }

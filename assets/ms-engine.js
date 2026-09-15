@@ -128,6 +128,26 @@ window.MediScan = (function () {
     return lev(token, term, max) <= max;
   }
 
+  // Häufige deutsche Plan-/Funktionswörter (gefaltet). Ein Medikationsplan ist
+  // voll davon (Dosier-/Zeitspalten „alle 12 Std.", „morgens/mittags/abends",
+  // Grund-Spalte). Als Fuzzy-SAAT taugen sie nie: ein lev-1-Nachbar eines kurzen
+  // Synonyms fabriziert sonst einen Wirkstoff (z. B. Token „alle" → „allo" =
+  // Allopurinol). Solche Wörter dürfen daher KEINEN Fuzzy-Treffer säen. Die
+  // Substring-/Exakt-Stufen bleiben unberührt – ein real gedruckter Wirkstoff
+  // wird weiterhin über seinen echten Namen gefunden, nie nur über so ein Token.
+  // (Nur Fuzzy-relevant, also Länge ≥4; kürzere scheitern ohnehin an fuzzyOk.)
+  var COMMON_DE = {};
+  ("alle aller allen alles oder aber auch sowie sonst dann noch schon nur mehr " +
+   "morgens mittags abends nachts frueh mittag abend nacht morgen tags " +
+   "taeglich woche wochen monat monate tage tagen jede jeden jeder jedes " +
+   "stueck stunde stunden mahlzeit mahlzeiten nahrung wasser essen einheit einheiten " +
+   "tabl tabl! tablette tabletten filmtablette filmtabletten kapsel kapseln tropfen " +
+   "hube spruehstoss grund gegen wegen nach nachdem bevor unter ueber ohne " +
+   "eine einen einer eines eins bei mit fuer zur zum den der die das dem des " +
+   "name wirkstoff staerke form menge zeit hinweis hinweise dosierung einnahme anwendung " +
+   "bedarf morgen mittag abend nacht seite patient geburtsdatum ausgestellt")
+    .split(" ").forEach(function (w) { if (w) COMMON_DE[w] = true; });
+
   // ---- Index aufbauen -------------------------------------------------------
   function buildIndex() {
     var medById = {};
@@ -237,6 +257,10 @@ window.MediScan = (function () {
           if (Math.abs(tok.length - t.length) > 3) continue;
           if (tok === t) { score = Math.max(score, 90 + t.length); break; }
           if (fuzzyOk(tok, t)) {
+            // Häufiges deutsches Plan-/Funktionswort? Dann NIE als Fuzzy-Saat
+            // (Token „alle" aus „alle 12 Std." darf nicht „allo"=Allopurinol
+            // fabrizieren). Substring-/Exakt-Stufen oben bleiben unberührt.
+            if (COMMON_DE[fold(tok)]) continue;
             // Token-Exklusivität: ist dieses Token EXAKT der Name eines ANDEREN
             // Wirkstoffs, darf es den aktuellen (fremden) nicht fuzzy fabrizieren
             // (schützt auch Klassen-Nachbarn wie Nifedipin/Nimodipin, lev 2).

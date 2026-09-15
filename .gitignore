@@ -5,3 +5,6 @@ deploy-local.log
 Thumbs.db
 scratchpad/
 *.tmp
+# Realer ARMIN-Musterplan (urheberrechtlich geschuetzte Fremd-Abbildung) – nur
+# lokale Scan-Validierung, NICHT in das oeffentliche Repo committen/deployen.
+test/scan-samples/

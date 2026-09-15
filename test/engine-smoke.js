@@ -375,6 +375,36 @@ function ok(name, cond, extra) {
   ok("Anti-Phantom: KEIN Lovastatin (lev-3-Nachbar von Simvastatin)",
     phantomSrc.indexOf("Lovastatin") === -1, JSON.stringify(phantomSrc));
 
+  // Anti-Phantom II — Allerweltswort vs. 4-Zeichen-Synonym (2026-09-15, SW -30).
+  // Die Clarithromycin-Zeile des realen ARMIN-Plans trägt die Dosierung
+  // „alle 12 Std."; das deutsche Stoppwort „alle" ist Levenshtein-1 vom
+  // 4-Zeichen-Synonym „allo" (Allopurinol) -> ohne die COMMON_DE-Sperre erfände
+  // detect() ein NICHT verordnetes Allopurinol in den Plan (Anti-Fabrikation).
+  // Die Sperre muss das Wort blocken, ohne das echte Synonym zu brechen.
+  var alleSrc = MS.detect("Clarithromycin alle 12 Std.").map(x => x.ingredient);
+  ok("Anti-Phantom: 'alle 12 Std.' erfindet KEIN Allopurinol",
+    alleSrc.indexOf("Allopurinol") === -1, JSON.stringify(alleSrc));
+  ok("Anti-Phantom: dabei korrekt Clarithromycin erkannt",
+    alleSrc.indexOf("Clarithromycin") !== -1, JSON.stringify(alleSrc));
+  // Gegenprobe: die Stoppwort-Sperre bricht das echte Synonym/den Namen NICHT
+  ok("Gegenprobe: Synonym 'allo' -> Allopurinol bleibt erkannt",
+    MS.detect("allo").map(x => x.ingredient).indexOf("Allopurinol") !== -1,
+    JSON.stringify(MS.detect("allo").map(x => x.ingredient)));
+  ok("Gegenprobe: Name 'Allopurinol' bleibt erkannt",
+    MS.detect("Allopurinol").map(x => x.ingredient).indexOf("Allopurinol") !== -1);
+
+  // Echt-Positiv — Johanniskraut/Laif (2026-09-15). Auf dem realen Plan steht in
+  // der Selbstmedikation ein Johanniskraut-Präparat; als starker CYP3A4-Induktor
+  // ist es interaktions-relevant und MUSS erkannt werden (Wirkstoff Hypericum
+  // perforatum). Schützt gegen eine später zu aggressive Stoppwort-/Filterliste,
+  // die diesen echten Treffer versehentlich mit-abräumt.
+  var jkSrc = MS.detect("Laif 900 Johanniskraut").map(x => x.ingredient);
+  ok("Positiv: Johanniskraut/Laif -> Hypericum perforatum erkannt",
+    jkSrc.indexOf("Hypericum perforatum") !== -1, JSON.stringify(jkSrc));
+  var jkFind = MS.search("laif");
+  ok("Suche 'Laif' -> Johanniskraut (Hypericum perforatum)",
+    jkFind.length > 0 && /hypericum/i.test(jkFind[0].sub), jkFind.map(m => m.name).join(","));
+
   // --- Kalender-Export (.ics) für Einnahme-Erinnerungen ---------------------
   ok("Zeit: '8:00' -> '08:00'", MS.ics.validTime("8:00") === "08:00");
   ok("Zeit: '23:59' gültig", MS.ics.validTime("23:59") === "23:59");
