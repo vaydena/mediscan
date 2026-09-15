@@ -79,6 +79,24 @@
   }
   function addById(id) { addByIds([id]); }
 
+  // Fügt gescannte Med-IDs hinzu (ohne PZN-Zuordnungslogik) und liefert die Zahl
+  // neu hinzugekommener. Persistiert + rendert die Chips, analysiert aber nicht.
+  function addScanned(ids) {
+    var added = 0;
+    (ids || []).forEach(function (raw) {
+      var id = parseInt(raw, 10);
+      if (isNaN(id) || !MS.medById(id)) return;
+      if (selected.indexOf(id) === -1) { selected.push(id); added++; }
+    });
+    if (added) { lsSet(LS_SEL, selected); renderChips(); }
+    return added;
+  }
+  // Nach einem Scan (Medikationsplan / OCR / bekannte PZN) die Wechselwirkungen
+  // IMMER zeigen, sobald Medikamente vorhanden sind – auch beim allerersten Scan.
+  // (maybeRerun() tat das nur, wenn zuvor schon einmal analysiert wurde → genau
+  // deshalb „scannt, zeigt aber die Wechselwirkung nicht".)
+  function analyzeIfReady() { if (ready && selected.length) analyze(); }
+
   // ---- PZN: gerätelokale Zuordnung (kein Register, keine erfundenen Daten) ----
   function linkPZN(pzn, ids) {
     var valid = (ids || []).map(function (x) { return parseInt(x, 10); })
@@ -106,6 +124,7 @@
     if (known && known.length && known.some(function (id) { return MS.medById(id); })) {
       pendingPZN = null; renderPending();
       addByIds(known);
+      if (!resultsShown) analyzeIfReady();   // erster Scan: addByIds→maybeRerun analysiert (noch) nicht
       var nm = known.map(function (id) { var m = MS.medById(id); return m ? m.name : null; })
         .filter(Boolean).join(" + ");
       toast("PZN " + pzn + " erkannt → " + nm + ".");
@@ -487,9 +506,8 @@
       found.forEach(function (f) {
         (f.ids && f.ids.length ? f.ids : [f.medId]).forEach(function (id) { if (toAdd.indexOf(id) === -1) toAdd.push(id); });
       });
-      var added = 0;
-      toAdd.forEach(function (id) { if (selected.indexOf(id) === -1 && MS.medById(id)) { selected.push(id); added++; } });
-      if (added) { lsSet(LS_SEL, selected); renderChips(); maybeRerun(); }
+      var added = addScanned(toAdd);
+      if (added) analyzeIfReady();   // Wechselwirkungen sofort zeigen – auch beim ersten Scan
       setTimeout(function () { showOCR(false); }, 700);
       if (added) { showRaw(""); toast(added + " Medikament" + (added > 1 ? "e" : "") + " erkannt und hinzugefügt."); }
       else if (found.length) { showRaw(""); toast("Erkannte Medikamente sind bereits in der Liste."); }
@@ -540,6 +558,38 @@
     try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
     handlePZN("PZN " + r.pzn);
   }
+  // Zentraler Einstieg für JEDEN gelesenen Code-Inhalt (Foto ODER Live-Kamera).
+  // Reihenfolge ist entscheidend:
+  //   1) Ist es ein Medikationsplan (BMP-Data-Matrix, „<MP …>" / attributierte
+  //      Elemente)? Dann die aufgedruckten Wirkstoff-/Handelsnamen direkt aus dem
+  //      Payload ernten und über MS.detect() den DB-IDs zuordnen. KEINE PZN raten
+  //      – der Data-Matrix-Inhalt ist die verlässliche Quelle (besser als OCR).
+  //   2) Sonst als einzelne PZN behandeln (Strichcode auf einer Packung).
+  // Nur so „scannt die App den Plan und zeigt die Wechselwirkung automatisch".
+  function handleScanPayload(raw, live) {
+    var names = (MS.bmp && MS.bmp.text) ? MS.bmp.text(raw) : "";
+    if (names) {
+      if (live) stopScan();
+      var found = MS.detect(names) || [];
+      var ids = [];
+      found.forEach(function (f) {
+        (f.ids && f.ids.length ? f.ids : [f.medId]).forEach(function (id) {
+          if (ids.indexOf(id) === -1) ids.push(id);
+        });
+      });
+      var added = addScanned(ids);
+      try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
+      if (added) toast(added + " Medikament" + (added > 1 ? "e" : "") + " aus dem Medikationsplan erkannt.");
+      else if (found.length) toast("Medikamente aus dem Plan sind bereits in der Liste.");
+      else toast("Medikationsplan erkannt, aber keine bekannten Wirkstoffe in der Datenbank gefunden.");
+      setTab("manual");
+      analyzeIfReady();   // Wechselwirkungen sofort zeigen – auch beim ersten Scan
+      return true;
+    }
+    var r = MS.pzn.parse(raw);
+    if (r) { if (live) onScanHit(r); else onPhotoHit(r); return true; }
+    return false;
+  }
   async function decodeImageFile(file) {
     if (!file) return false;
     toast("Barcode wird gelesen …");
@@ -554,8 +604,10 @@
         var codes = await det.detect(bmp);
         try { if (bmp && bmp.close) bmp.close(); } catch (e) {}
         for (var i = 0; codes && i < codes.length; i++) {
-          var r = MS.pzn.parse(codes[i].rawValue || "");
-          if (r) { if (url) { try { URL.revokeObjectURL(url); } catch (e) {} } onPhotoHit(r); return true; }
+          if (handleScanPayload(codes[i].rawValue || "")) {
+            if (url) { try { URL.revokeObjectURL(url); } catch (e) {} }
+            return true;
+          }
         }
       } catch (e) { /* kein Treffer -> ZXing versuchen */ }
     }
@@ -567,8 +619,7 @@
       var result = url ? await reader.decodeFromImageUrl(url) : null;
       if (result) {
         var raw = result.getText ? result.getText() : String(result);
-        var r2 = MS.pzn.parse(raw);
-        if (r2) { try { reader.reset(); } catch (e) {} if (url) { try { URL.revokeObjectURL(url); } catch (e) {} } onPhotoHit(r2); return true; }
+        if (handleScanPayload(raw)) { try { reader.reset(); } catch (e) {} if (url) { try { URL.revokeObjectURL(url); } catch (e) {} } return true; }
       }
     } catch (e) { /* kein Code gefunden / offline */ }
     if (reader) { try { reader.reset(); } catch (e) {} }
@@ -623,8 +674,7 @@
       scanDetector.detect(vid).then(function (codes) {
         if (!scanning) return;
         for (var i = 0; codes && i < codes.length; i++) {
-          var r = MS.pzn.parse(codes[i].rawValue || "");
-          if (r) { onScanHit(r); return; }
+          if (handleScanPayload(codes[i].rawValue || "", true)) return;
         }
         scanRAF = requestAnimationFrame(tick);
       }).catch(function () { if (scanning) scanRAF = requestAnimationFrame(tick); });
@@ -638,7 +688,7 @@
       var Z = window.ZXing;
       scanReader = new Z.BrowserMultiFormatReader();
       scanReader.decodeFromVideoElement(el("scanvid"), function (result) {
-        if (result && scanning) { var r = MS.pzn.parse(result.getText ? result.getText() : String(result)); if (r) onScanHit(r); }
+        if (result && scanning) handleScanPayload(result.getText ? result.getText() : String(result), true);
       });
     } catch (e) { stopScan(); toast("Scanner-Fehler. Bitte PZN manuell eingeben."); }
   }

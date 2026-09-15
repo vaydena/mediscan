@@ -308,6 +308,73 @@ function ok(name, cond, extra) {
   ok("PZN-Parse: 7-stellig -> 01234562", pSeven && pSeven.pzn === "01234562", JSON.stringify(pSeven));
   ok("PZN-Parse: Text ohne Nummer => null", MS.pzn.parse("kein code hier") === null);
 
+  // --- Bundeseinheitlicher Medikationsplan (BMP / Data-Matrix) --------------
+  // (2026-09-15, gemeldeter Fehler: „App scannt den Plan, zeigt aber keine
+  //  Wechselwirkung".) Ein gescannter Medikationsplan ist eine XML-artige
+  //  Nutzlast <MP…><M …/></MP>. Frühere DOPPELTE Falle:
+  //   (A) Die vielen Zahlen darin enthielten zufällig eine prüfziffer-gültige
+  //       Ziffernfolge -> pzn.parse() lieferte eine FALSCHE Einzel-PZN und die
+  //       App blieb dort stehen, statt den ganzen Plan zu lesen.
+  //   (B) Fuzzy-Matching erfand aus exakten Namen lev-3-Nachbarn hinzu.
+  //  Jetzt: looksStructured() erkennt Markup -> pzn.parse()=null; bmp.text()
+  //  erntet die Namen; detect() gleicht sie belegt & exklusiv gegen die DB ab.
+  //  Nachbau des ARMIN-Musters (Auszug: die Meds, die belegte Paare bilden).
+  var bmp = '<MP v="025" l="de-DE" U="a1b2c3d4e5f6"><PI g="Armin" f="Müller" b="19500101"/>' +
+    '<S><M p="00489337" t="Metoprololsucc. Beta 47,5" w="Metoprolol" s="47,5 mg" du="1-0-1"/>' +
+    '<M p="03105842" t="Ramipril AbZ 5 mg" w="Ramipril" s="5 mg" du="1-0-0"/>' +
+    '<M p="00489344" t="Clopidogrel Zentiva" w="Clopidogrel" s="75 mg" du="1-0-0"/>' +
+    '<M p="02532741" t="Pantoprazol Actavis" w="Pantoprazol" s="40 mg" du="1-0-0"/>' +
+    '<M p="02207085" t="Simvastatin AL" w="Simvastatin" s="40 mg" du="0-0-1"/>' +
+    '<M p="01234562" t="Clarithromycin HEC" w="Clarithromycin" s="500 mg" du="1-0-1"/>' +
+    '<M p="12345678" t="NovoRapid Penfill" w="Insulin aspart" s="100 E/ml" du="n. Plan"/>' +
+    '</S></MP>';
+
+  // (A) DataMatrix-Falle geschlossen: der ganze Plan wird NIE als Einzel-PZN geraten
+  ok("BMP: pzn.parse(<MP…>) => null (keine falsche Einzel-PZN)",
+    MS.pzn.parse(bmp) === null, JSON.stringify(MS.pzn.parse(bmp)));
+  ok("BMP: looksStructured erkennt Markup", MS.bmp.looksStructured(bmp) === true);
+  ok("BMP: looksStructured=false bei Freitext (kein Fehlalarm)",
+    MS.bmp.looksStructured("Metoprolol 47,5 mg 1-0-1 taeglich") === false);
+
+  // bmp.text() erntet die Namen aus den Attributwerten
+  var bmpNames = MS.bmp.text(bmp);
+  ok("BMP: bmp.text() erntet Namen (nicht leer, enthält Wirkstoffe)",
+    bmpNames.length > 0 && /Metoprolol/.test(bmpNames) && /Clarithromycin/.test(bmpNames), bmpNames.slice(0, 90));
+  ok("BMP: bmp.text('') leer (kein Markup -> nichts ernten)", MS.bmp.text("Aspirin 100") === "");
+
+  // detect() über die geernteten Namen findet die echten Wirkstoffe des Plans
+  var bmpDet = MS.detect(bmpNames);
+  var bmpIng = bmpDet.map(x => x.ingredient);
+  ["Metoprolol", "Ramipril", "Clopidogrel", "Pantoprazol", "Simvastatin", "Clarithromycin", "Insulin"].forEach(function (w) {
+    ok("BMP: detect findet " + w, bmpIng.indexOf(w) !== -1, JSON.stringify(bmpIng));
+  });
+
+  // Kern des gemeldeten Fehlers: der Plan MUSS die belegten Wechselwirkungen zeigen.
+  // Paare über den Interaktions-Titel prüfen (drug1/drug2 tragen Marken-Namen).
+  var bmpIds = [];
+  bmpDet.forEach(f => (f.ids && f.ids.length ? f.ids : [f.medId]).forEach(id => { if (bmpIds.indexOf(id) === -1) bmpIds.push(id); }));
+  var bmpA = MS.analyze(bmpIds, []);
+  var titleHas = (re1, re2) => bmpA.interactions.some(x => re1.test(x.title || "") && re2.test(x.title || ""));
+  ok("BMP-Analyse: Simvastatin + Clarithromycin (Rhabdomyolyse) erkannt",
+    titleHas(/simvastatin/i, /clarithromycin/i), "n=" + bmpA.interactions.length);
+  ok("BMP-Analyse: Clopidogrel + Pantoprazol erkannt",
+    titleHas(/clopidogrel/i, /pantoprazol/i), "n=" + bmpA.interactions.length);
+  ok("BMP-Analyse: Insulin + Metoprolol (Hypoglykämie-Maskierung) erkannt",
+    titleHas(/insulin/i, /metoprolol/i), "n=" + bmpA.interactions.length);
+
+  // Anti-Fabrikation: exakte Wirkstoffnamen dürfen KEINE lev-3-Nachbarn erfinden
+  // (früher aus dem Plan geleakt: clarithromycin->Azithromycin,
+  //  simvastatin->Pravastatin & ->Lovastatin — alle Levenshtein-Distanz 3).
+  var phantomSrc = MS.detect("Clarithromycin 500 mg, Simvastatin 40 mg").map(x => x.ingredient);
+  ok("Anti-Phantom: erkennt exakt Clarithromycin + Simvastatin",
+    phantomSrc.indexOf("Clarithromycin") !== -1 && phantomSrc.indexOf("Simvastatin") !== -1, JSON.stringify(phantomSrc));
+  ok("Anti-Phantom: KEIN Azithromycin (lev-3-Nachbar von Clarithromycin)",
+    phantomSrc.indexOf("Azithromycin") === -1, JSON.stringify(phantomSrc));
+  ok("Anti-Phantom: KEIN Pravastatin (lev-3-Nachbar von Simvastatin)",
+    phantomSrc.indexOf("Pravastatin") === -1, JSON.stringify(phantomSrc));
+  ok("Anti-Phantom: KEIN Lovastatin (lev-3-Nachbar von Simvastatin)",
+    phantomSrc.indexOf("Lovastatin") === -1, JSON.stringify(phantomSrc));
+
   // --- Kalender-Export (.ics) für Einnahme-Erinnerungen ---------------------
   ok("Zeit: '8:00' -> '08:00'", MS.ics.validTime("8:00") === "08:00");
   ok("Zeit: '23:59' gültig", MS.ics.validTime("23:59") === "23:59");

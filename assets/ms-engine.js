@@ -121,7 +121,10 @@ window.MediScan = (function () {
   function fuzzyOk(token, term) {
     var minl = Math.min(token.length, term.length);
     if (minl < 4) return false;
-    var max = minl <= 5 ? 1 : minl <= 9 ? 2 : 3;
+    // Lange Wörter bei max 2 deckeln: bei Cap 3 fabrizierte ein exakt gelesener
+    // Wirkstoff seine lev-3-Nachbarn dazu (Clarithromycin→Azithromycin,
+    // Simvastatin→Pravastatin/Lovastatin) – erfundene Wechselwirkungen.
+    var max = minl <= 5 ? 1 : 2;
     return lev(token, term, max) <= max;
   }
 
@@ -170,8 +173,19 @@ window.MediScan = (function () {
       foldResolve[fold(k)] = fold(ingList[0]);    // Handelsname -> (erster) Wirkstoff, gefaltet
     });
 
+    // Exakt-Term -> Menge zugehöriger Wirkstoffe (nur Ein-Wort-Terme; nur die
+    // können als einzelnes OCR-Token kollidieren). Grundlage der Token-
+    // Exklusivität in detect(): ein Token, das EXAKT ein anderer Wirkstoff ist,
+    // darf keinen fremden Wirkstoff fuzzy fabrizieren.
+    var exactTermIng = {};
+    for (i = 0; i < terms.length; i++) {
+      var tt = terms[i];
+      if (tt.t.indexOf(" ") !== -1) continue;   // mehrwortig -> nie ein einzelnes Token
+      (exactTermIng[tt.t] = exactTermIng[tt.t] || {})[tt.ing] = true;
+    }
+
     IDX = { medById: medById, ingredientToIds: ingredientToIds, terms: terms,
-            foldResolve: foldResolve, synResolve: synResolve };
+            foldResolve: foldResolve, synResolve: synResolve, exactTermIng: exactTermIng };
   }
 
   async function load(url) {
@@ -222,7 +236,14 @@ window.MediScan = (function () {
           var tok = tokens[j];
           if (Math.abs(tok.length - t.length) > 3) continue;
           if (tok === t) { score = Math.max(score, 90 + t.length); break; }
-          if (fuzzyOk(tok, t)) { score = Math.max(score, 60 + t.length); }
+          if (fuzzyOk(tok, t)) {
+            // Token-Exklusivität: ist dieses Token EXAKT der Name eines ANDEREN
+            // Wirkstoffs, darf es den aktuellen (fremden) nicht fuzzy fabrizieren
+            // (schützt auch Klassen-Nachbarn wie Nifedipin/Nimodipin, lev 2).
+            var ex = IDX.exactTermIng[tok];
+            if (ex && !ex[term.ing]) continue;
+            score = Math.max(score, 60 + t.length);
+          }
         }
       }
       if (score > 0) {
@@ -509,11 +530,41 @@ window.MediScan = (function () {
     if (c === 10) return false;
     return c === (s.charCodeAt(7) - 48);
   }
+  // Erkennt strukturierte / XML-artige Nutzlasten – v. a. den Bundeseinheitlichen
+  // Medikationsplan („<MP …><M p=… w=… />"). Solche Data-Matrix-Inhalte dürfen
+  // NICHT als „eine PZN" fehlgedeutet werden: Pfad (3) fände sonst in den vielen
+  // enthaltenen Zahlen eine zufällig prüfziffer-gültige Ziffernfolge und die App
+  // bliebe bei einer einzelnen (falschen) PZN stehen, statt den ganzen Plan zu
+  // lesen. Der Plan wird stattdessen über bmpText()/detect() als komplette
+  // Medikamentenliste ausgewertet.
+  function looksStructured(text) {
+    return /<\s*MP\b/i.test(text) ||
+           /<[A-Za-z][\w-]*(\s+[A-Za-z][\w-]*\s*=\s*["'][^"']*["'])+/.test(text);
+  }
+  // Erntet Wirkstoff-/Handelsnamen aus einer BMP-/XML-Nutzlast: alle in
+  // Anführungszeichen stehenden Attributwerte, die Buchstaben enthalten. Bewusst
+  // spec-agnostisch (kein Verlass auf konkrete Attribut-Buchstaben wie w=/t=),
+  // damit verschiedene BMP-Versionen/Encoder gleichermaßen greifen. detect()
+  // gleicht die Namen gegen die DB ab und fabriziert dank Token-Exklusivität und
+  // Fuzzy-Cap nichts hinzu. Reines On-Device-Parsen; nichts wird gespeichert.
+  function bmpText(raw) {
+    var text = String(raw == null ? "" : raw);
+    if (!looksStructured(text)) return "";
+    var m = text.match(/=\s*"([^"]*)"|=\s*'([^']*)'/g) || [];
+    var parts = [];
+    for (var i = 0; i < m.length; i++) {
+      var v = m[i].replace(/^=\s*["']/, "").replace(/["']$/, "");
+      if (/[A-Za-zäöüß]{3,}/.test(v)) parts.push(v);
+    }
+    return parts.join(" ");
+  }
+
   // Findet eine prüfziffer-gültige PZN in beliebigem Barcode-/DataMatrix-/OCR-Text.
   // Reihenfolge: (1) ausgezeichnete „PZN …", (2) deutsche Pharma-GTIN (Präfix 4150),
   // (3) irgendeine Ziffernfolge (Länge 8, dann 7) mit gültiger PZN-Prüfziffer.
   function pznParse(raw) {
     var text = String(raw == null ? "" : raw);
+    if (looksStructured(text)) return null;      // BMP/Markup -> nie als Einzel-PZN raten
     var lab = text.match(/PZN[\s.:\-]*?(\d[\d\s]{5,8}\d)/i);          // (1)
     if (lab) { var p = lab[1].replace(/\s/g, ""); if (pznCheck(p)) return { pzn: pad8(p), valid: true, source: "label" }; }
     var g = text.replace(/\D/g, "").match(/4150(\d{8})/);            // (2)
@@ -610,6 +661,7 @@ window.MediScan = (function () {
     duplicatesFor: duplicatesFor,
     analyze: analyze, sev: sev, norm: norm,
     pzn: { parse: pznParse, check: pznCheck, pad8: pad8 },
+    bmp: { looksStructured: looksStructured, text: bmpText },
     ics: { build: buildICS, escape: icsEscape, fold: icsFold, validTime: validTime },
     RISK_CATEGORIES: RISK_CATEGORIES
   };
