@@ -18,6 +18,18 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
+  // Inline-Linien-Icons (Feather-Stil, offline, currentColor) – rein optisch, ersetzt Emoji.
+  function svgIcon(name, extra) {
+    var P = {
+      clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/>',
+      calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+      bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+      share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/>',
+      download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>'
+    };
+    return '<svg class="ico' + (extra ? " " + extra : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (P[name] || "") + '</svg>';
+  }
   // ISO-Datum -> deutsches Format; Tausenderpunkte; Datengrundlage-Zeile aus MS.meta()
   function deDate(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); return m ? (m[3] + "." + m[2] + "." + m[1]) : String(iso || ""); }
   function deNum(n) { return String(n == null ? "" : n).replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
@@ -301,7 +313,23 @@
     var card = el("plansCard"), list = el("planList"), n = el("planN");
     if (!card || !list) return;
     if (n) n.textContent = plans.length;
-    if (!plans.length) { card.hidden = true; list.innerHTML = ""; return; }
+    if (!plans.length) {
+      // Dauerhaft sichtbar: illustrierter Leerzustand mit erklärendem Hinweis
+      // (rein optisch, keine neue Funktion – der Weg bleibt „oben auswählen → speichern").
+      card.hidden = false;
+      list.innerHTML = '<div class="plans-empty">' +
+        '<svg class="plans-empty-art" viewBox="0 0 120 96" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<rect class="pe-a" x="26" y="14" width="66" height="74" rx="9" stroke-width="3"/>' +
+        '<rect class="pe-a" x="45" y="8" width="28" height="14" rx="5" stroke-width="3"/>' +
+        '<path class="pe-b" d="M40 42h28M40 54h34M40 66h20" stroke-width="3"/>' +
+        '<circle class="pe-c" cx="90" cy="72" r="15" stroke-width="3"/>' +
+        '<path class="pe-c" d="M90 66v12M84 72h12" stroke-width="3"/>' +
+        '</svg>' +
+        '<p class="pe-lead">Noch keine gespeicherten Pläne</p>' +
+        '<p class="small muted pe-sub">Wählen Sie oben Ihre Medikamente aus und tippen Sie auf <b>„Als Plan speichern"</b> – so sichern Sie eine Liste für später und können Einnahme-Erinnerungen einrichten.</p>' +
+        '</div>';
+      return;
+    }
     card.hidden = false;
     var notif = ("Notification" in window) ? Notification.permission : "unsupported";
     list.innerHTML = plans.map(function (p) {
@@ -313,7 +341,7 @@
         '<div class="mplan-prev small muted">' + esc(preview || "—") + '</div></div>';
       h += '<div class="mplan-bt">' +
         '<button type="button" class="btn small" data-act="load" data-id="' + esc(p.id) + '">Laden</button>' +
-        '<button type="button" class="btn ghost small" data-act="toggle" data-id="' + esc(p.id) + '">' + (open ? "Schließen" : "⏰ Erinnern") + '</button>' +
+        '<button type="button" class="btn ghost small" data-act="toggle" data-id="' + esc(p.id) + '">' + (open ? "Schließen" : (svgIcon("clock") + "Erinnern")) + '</button>' +
         '<button type="button" class="btn ghost small" data-act="rename" data-id="' + esc(p.id) + '">Umbenennen</button>' +
         '<button type="button" class="btn ghost small danger" data-act="del" data-id="' + esc(p.id) + '">Löschen</button>' +
         '</div></div>';
@@ -324,8 +352,8 @@
         }).join("") : '<span class="small muted">Noch keine Einnahmezeit.</span>') + '</div>';
         h += '<div class="rem-add"><input type="time" class="tin" id="tin_' + esc(p.id) + '" value="08:00" aria-label="Einnahmezeit"><button type="button" class="btn ghost small" data-act="addtime" data-id="' + esc(p.id) + '">+ Zeit</button></div>';
         h += '<div class="rem-actions">' +
-          '<button type="button" class="btn cyan small" data-act="ics" data-id="' + esc(p.id) + '">📅 Kalender-Datei (.ics)</button>' +
-          '<button type="button" class="btn ' + (p.notify ? "cyan" : "ghost") + ' small" data-act="notify" data-id="' + esc(p.id) + '">' + (p.notify ? "🔔 In-App-Erinnerung: an" : "🔔 In-App-Erinnerung") + '</button>' +
+          '<button type="button" class="btn cyan small" data-act="ics" data-id="' + esc(p.id) + '">' + svgIcon("calendar") + 'Kalender-Datei (.ics)</button>' +
+          '<button type="button" class="btn ' + (p.notify ? "cyan" : "ghost") + ' small" data-act="notify" data-id="' + esc(p.id) + '">' + svgIcon("bell") + (p.notify ? "In-App-Erinnerung: an" : "In-App-Erinnerung") + '</button>' +
           '</div>';
         var note = '<b>Kalender (.ics):</b> zuverlässig – die Erinnerung kommt aus Ihrem Kalender, auch offline und bei geschlossener App. <b>In-App:</b> nur, solange diese App geöffnet ist.';
         if (notif === "denied") note += ' Benachrichtigungen sind im Browser blockiert.';
@@ -798,10 +826,21 @@
   }
 
   function card(sevObj, title, o) {
-    var cls = "sev" + (sevObj.rank || 0);
+    var rank = sevObj.rank || 0;
+    var cls = "sev" + rank;
+    // Schweregrad-Ring (rein optisch): Füllgrad = rank/4, Glyph wie im Ergebnis-Banner.
+    var C = 100.53;                                              // Umfang 2·π·16
+    var off = (C * (1 - Math.max(0, Math.min(4, rank)) / 4)).toFixed(2);
+    var glyph = rank >= 2 ? "!" : (rank === 1 ? "i" : "");
     var h = '<div class="res ' + cls + '">';
     h += '<div class="head"><div class="ttl">' + esc(title) + '</div>';
-    h += '<span class="badge">' + esc(sevObj.label) + '</span></div>';
+    h += '<div class="sevmark">' +
+      '<svg class="sevring" viewBox="0 0 40 40" aria-hidden="true" style="--ring-c:' + C + ';--ring-o:' + off + '">' +
+      '<circle class="sevring-bg" cx="20" cy="20" r="16"/>' +
+      '<circle class="sevring-fg" cx="20" cy="20" r="16" transform="rotate(-90 20 20)"/>' +
+      '<text class="sevring-gl" x="20" y="20">' + glyph + '</text>' +
+      '</svg>' +
+      '<span class="sevmark-lb">' + esc(sevObj.label) + '</span></div></div>';
     if (o.pair) h += '<div class="pair">' + o.pair + '</div>';
     if (o.medtags) h += '<div class="medtags">' + o.medtags + '</div>';
     if (o.desc) h += '<div class="desc">' + esc(o.desc) + '</div>';
@@ -874,8 +913,8 @@
     h += '<div class="res-head">'
       + '<h2 id="resHeading" tabindex="-1">Ergebnis</h2>'
       + '<div class="res-actions">'
-      + '<button class="btn ghost small" id="shareBtn" type="button">📤 Für Arzt/Apotheke</button>'
-      + '<button class="btn ghost small" id="pdfBtn" type="button">⬇ PDF-Bericht</button>'
+      + '<button class="btn ghost small" id="shareBtn" type="button">' + svgIcon("share") + 'Für Arzt/Apotheke</button>'
+      + '<button class="btn ghost small" id="pdfBtn" type="button">' + svgIcon("download") + 'PDF-Bericht</button>'
       + '</div></div>';
     // Gesamt-Banner: berichtet nur, was die Referenzdatenbank enthält (keine eigene
     // klinische Bewertung – Label kommt unverändert aus der Engine).
@@ -893,7 +932,7 @@
       stat(rN, "Risiken") + '</div>';
 
     if (iN + cN + rN + dN === 0) {
-      h += '<div class="ok-note" style="margin-top:12px">✓ In der hinterlegten Datenbank wurden keine Wechselwirkungen, Risiken oder Doppelungen zu dieser Kombination gefunden. Das ist <u>keine</u> Garantie der Unbedenklichkeit – besprechen Sie Ihre Medikation mit Arzt/Apotheke.</div>';
+      h += '<div class="ok-note" style="margin-top:12px"><svg class="ico ico-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>In der hinterlegten Datenbank wurden keine Wechselwirkungen, Risiken oder Doppelungen zu dieser Kombination gefunden. Das ist <u>keine</u> Garantie der Unbedenklichkeit – besprechen Sie Ihre Medikation mit Arzt/Apotheke.</span></div>';
     }
     h += '</div>';
 
@@ -948,6 +987,7 @@
       + '</div>';
 
     el("results").innerHTML = h;
+    animateCounts(el("results"));
     var pdf = el("pdfBtn");
     if (pdf) pdf.onclick = function () { loadFDA().then(function () { makePDF(r); }, function () { makePDF(r); }); };
     // „Für Arzt/Apotheke" teilen: bevorzugt die PDF-Datei über die Web-Share-API,
@@ -961,7 +1001,28 @@
     }
     ensureFDA();
   }
-  function stat(n, label) { return '<div class="stat"><b>' + n + '</b><span>' + esc(label) + '</span></div>'; }
+  function stat(n, label) { return '<div class="stat"><b data-to="' + (n || 0) + '">' + n + '</b><span>' + esc(label) + '</span></div>'; }
+  // Zahlen im Ergebnis kurz hochzählen (rein optisch; setzt bei reduzierter Bewegung sofort den Endwert).
+  function animateCounts(root) {
+    if (!root) return;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var els = root.querySelectorAll(".stat b[data-to]"), i;
+    for (i = 0; i < els.length; i++) {
+      (function (b) {
+        var to = parseInt(b.getAttribute("data-to"), 10) || 0;
+        if (reduce || to <= 0 || !window.requestAnimationFrame) { b.textContent = to; return; }
+        var dur = Math.min(900, 340 + to * 45), t0 = 0;
+        b.textContent = "0";
+        function tick(now) {
+          if (!t0) t0 = now;
+          var p = Math.min(1, (now - t0) / dur);
+          b.textContent = Math.round((1 - Math.pow(1 - p, 3)) * to);
+          if (p < 1) requestAnimationFrame(tick); else b.textContent = to;
+        }
+        requestAnimationFrame(tick);
+      })(els[i]);
+    }
+  }
 
   // ---- PDF-Bericht (jsPDF, WinAnsi-sicher) ----------------------------------
   function pdfSafe(s) {

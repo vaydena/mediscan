@@ -472,6 +472,81 @@ footer .links{margin-bottom:10px}
 .fda-cite{font-size:.76rem;color:var(--muted);font-style:italic}
 .fda-foot{margin-top:12px;font-size:.76rem;color:var(--muted);text-align:right}
 
+/* ================= Optik-Ergänzungen (nur Präsentation, keine Funktion) ================= */
+
+/* ---- Inline-Linien-Icons: skalieren mit der Textgröße, erben die Textfarbe ---- */
+.ico{width:1.15em;height:1.15em;flex:0 0 auto;stroke:currentColor;fill:none;vertical-align:-.16em}
+.subhead .ico{width:1.2em;height:1.2em;color:var(--cyan-d)}
+
+/* ---- „So funktioniert's" – Drei-Schritte-Streifen (Erfassen → Prüfen → Plan) ---- */
+.howto{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 16px;padding:0}
+.howto-step{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px;
+  background:var(--card);border:1px solid var(--line-soft);border-radius:15px;padding:15px 8px 13px;
+  box-shadow:var(--shadow-s);animation:cardIn .5s cubic-bezier(.22,.61,.36,1) both}
+.howto-step:nth-child(2){animation-delay:.07s}
+.howto-step:nth-child(3){animation-delay:.14s}
+.howto-ic{width:42px;height:42px;border-radius:13px;background:var(--grad-brand);color:#fff;display:grid;place-items:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 10px -4px rgba(0,105,92,.55)}
+.howto-ic .ico{width:23px;height:23px}
+.howto-tx{min-width:0;display:flex;flex-direction:column;gap:2px}
+.howto-tx b{font-size:.9rem;color:var(--ink);letter-spacing:.01em;overflow-wrap:break-word}
+.howto-tx span{font-size:.76rem;color:var(--muted);line-height:1.35;overflow-wrap:break-word}
+@media (min-width:480px){
+  .howto-step:not(:last-child)::after{content:"";position:absolute;right:-11px;top:32px;width:9px;height:9px;
+    border-top:2px solid var(--line);border-right:2px solid var(--line);transform:rotate(45deg)}
+}
+@media (max-width:360px){
+  .howto{gap:7px}
+  .howto-tx b{font-size:.82rem}
+  .howto-tx span{font-size:.71rem}
+}
+
+/* ---- „Meine Pläne": dauerhaft sichtbarer, illustrierter Leerzustand ---- */
+.plans-empty{text-align:center;padding:12px 8px 6px;animation:cardIn .5s cubic-bezier(.22,.61,.36,1) both}
+.plans-empty-art{width:116px;height:auto;display:block;margin:0 auto 8px}
+.plans-empty .pe-a{stroke:var(--muted);opacity:.42}
+.plans-empty .pe-b{stroke:var(--muted);opacity:.30}
+.plans-empty .pe-c{stroke:var(--cyan)}
+.plans-empty .pe-lead{font-weight:700;color:var(--ink);font-size:1rem;margin:0 0 4px}
+.plans-empty .pe-sub{max-width:44ch;margin:0 auto;line-height:1.5}
+
+/* ---- Schweregrad-Ring (ersetzt das flache Badge; Füllgrad = rank/4) ---- */
+.sevmark{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;max-width:96px}
+.sevring{width:40px;height:40px;overflow:visible}
+.sevring-bg{fill:none;stroke:var(--line);stroke-width:4}
+.sevring-fg{fill:none;stroke:var(--muted);stroke-width:4;stroke-linecap:round;
+  stroke-dasharray:var(--ring-c);stroke-dashoffset:var(--ring-o);
+  animation:sevfill .9s cubic-bezier(.34,1.12,.64,1) both}
+@keyframes sevfill{from{stroke-dashoffset:var(--ring-c)}to{stroke-dashoffset:var(--ring-o)}}
+.sevring-gl{fill:var(--muted);font:900 15px/1 system-ui,-apple-system,sans-serif;text-anchor:middle;dominant-baseline:central}
+.sevmark-lb{font-size:.66rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);line-height:1.15;text-align:center}
+.res.sev1 .sevring-fg{stroke:var(--sev1)} .res.sev1 .sevring-gl{fill:var(--sev1ink)} .res.sev1 .sevmark-lb{color:var(--sev1ink)}
+.res.sev2 .sevring-fg{stroke:var(--sev2)} .res.sev2 .sevring-gl{fill:var(--sev2ink)} .res.sev2 .sevmark-lb{color:var(--sev2ink)}
+.res.sev3 .sevring-fg{stroke:var(--sev3)} .res.sev3 .sevring-gl{fill:var(--sev3ink)} .res.sev3 .sevmark-lb{color:var(--sev3ink)}
+.res.sev4 .sevring-fg{stroke:var(--sev4)} .res.sev4 .sevring-gl{fill:var(--sev4ink)} .res.sev4 .sevmark-lb{color:var(--sev4ink)}
+/* Hoher Schweregrad: dezenter Puls am Ring */
+@keyframes sevpulse{0%,100%{filter:none}50%{filter:drop-shadow(0 0 5px rgba(229,57,53,.55))}}
+.res.sev3 .sevring,.res.sev4 .sevring{animation:sevpulse 2.2s ease-in-out infinite}
+
+/* ---- Mikroanimationen: gestaffelter Auftritt, Häkchen-Zeichnung, Banner-Icon ---- */
+@keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes resIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#results>.card{animation:cardIn .5s cubic-bezier(.22,.61,.36,1) both}
+#results>.card:nth-child(2){animation-delay:.06s}
+#results>.card:nth-child(3){animation-delay:.12s}
+#results>.card:nth-child(4){animation-delay:.18s}
+#results>.card:nth-child(5){animation-delay:.24s}
+#results>.card:nth-child(6){animation-delay:.30s}
+.res{animation:resIn .42s ease both}
+/* Erfolgs-Häkchen zeichnet sich einmal (ok-note) */
+.ico-check{color:var(--sev1ink);stroke-dasharray:24;stroke-dashoffset:24;animation:drawCheck .5s .15s ease forwards}
+@keyframes drawCheck{to{stroke-dashoffset:0}}
+/* Ergebnis-Banner-Icon: kurzer Pop, bei hohem Schweregrad zusätzlich sanfter Puls */
+@keyframes viconPop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes viconPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,57,53,0)}50%{box-shadow:0 0 0 6px rgba(229,57,53,.16)}}
+.verdict .vicon{animation:viconPop .42s cubic-bezier(.34,1.56,.64,1) both}
+.verdict.sev3 .vicon,.verdict.sev4 .vicon{animation:viconPop .42s cubic-bezier(.34,1.56,.64,1) both,viconPulse 2.2s 1s ease-in-out infinite}
+
 /* ---- Bewegung reduzieren ---- */
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s!important;transition-duration:.001s!important}

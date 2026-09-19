@@ -80,7 +80,7 @@ body.ms-locked{overflow:hidden}
   background:linear-gradient(135deg,var(--soft-2,#e4f3f0),var(--card,#fff) 70%);
   border:1px solid var(--line,#d6e6e3);border-left:4px solid var(--amber,#e8a51e);
   border-radius:14px;padding:12px 14px;box-shadow:var(--shadow-s,0 4px 14px -8px rgba(6,49,44,.16))}
-#ms-install .ii{flex:0 0 auto;font-size:1.55rem;line-height:1}
+#ms-install .ii{flex:0 0 auto;width:26px;height:26px;color:var(--amber,#e8a51e)}
 #ms-install .it{flex:1 1 auto;min-width:0;font-size:.92rem;color:var(--ink,#13322d);line-height:1.5}
 #ms-install .it b{color:var(--petrol,#00695c)}
 #ms-install .ibtn{flex:0 0 auto;border:0;cursor:pointer;font:inherit;font-weight:700;min-height:42px;
@@ -286,11 +286,28 @@ body.ms-locked{overflow:hidden}
        Standardmäßig ausgeblendet – erscheint nur, wenn die App installierbar und
        noch nicht installiert ist (per Inline-Skript am Seitenende gesteuert). -->
   <div id="ms-install" role="note" aria-live="polite">
-    <span class="ii" aria-hidden="true">📲</span>
+    <svg class="ii" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M12 7v6.5"/><path d="m9.2 10.8 2.8 2.8 2.8-2.8"/><path d="M10.5 18.5h3"/></svg>
     <span class="it" id="ms-install-txt"></span>
     <button type="button" class="ibtn" id="ms-install-go" hidden>Installieren</button>
     <button type="button" class="ix" id="ms-install-x" aria-label="Hinweis schließen" title="Schließen">×</button>
   </div>
+
+  <!-- „So funktioniert's" – knapper Drei-Schritte-Streifen (rein erklärend, ändert
+       nichts an der Funktion): Erfassen → Prüfen → Plan. -->
+  <ol class="howto" aria-label="So funktioniert MediScan in drei Schritten">
+    <li class="howto-step">
+      <span class="howto-ic" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+      <span class="howto-tx"><b>1 · Erfassen</b><span>Suchen oder Packung fotografieren</span></span>
+    </li>
+    <li class="howto-step">
+      <span class="howto-ic" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.4 7 9 4-1.6 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span>
+      <span class="howto-tx"><b>2 · Prüfen</b><span>Kombination prüfen lassen</span></span>
+    </li>
+    <li class="howto-step">
+      <span class="howto-ic" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+      <span class="howto-tx"><b>3 · Plan</b><span>Speichern &amp; erinnern lassen</span></span>
+    </li>
+  </ol>
 
   <!-- Eingabe -->
   <section class="card">
@@ -299,7 +316,7 @@ body.ms-locked{overflow:hidden}
          suchen ODER die Packung fotografieren. So erscheinen die Foto-Buttons
          sofort, ohne dass man erst einen „Foto scannen"-Tab öffnen muss. -->
     <div id="pane-manual">
-      <h3 class="subhead">🔎 Nach Name suchen</h3>
+      <h3 class="subhead"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Nach Name suchen</h3>
       <div class="field">
         <input type="text" id="q" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Medikament oder Wirkstoff …" aria-label="Medikament suchen">
         <div class="ac" id="ac" hidden></div>
@@ -310,7 +327,7 @@ body.ms-locked{overflow:hidden}
     <div class="hr" style="margin:18px 0 16px"></div>
 
     <div id="pane-scan" class="scanpad">
-      <h3 class="subhead">📷 … oder Packung fotografieren</h3>
+      <h3 class="subhead"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>… oder Packung fotografieren</h3>
       <!-- Zwei klar getrennte Wege, beide münden in DENSELBEN Decoder:
            „Foto aufnehmen" öffnet über capture="environment" direkt die Kamera,
            „Aus Galerie wählen" öffnet OHNE capture den Foto-/Datei-Picker mit den
@@ -325,8 +342,8 @@ body.ms-locked{overflow:hidden}
            wenn kein Code lesbar ist – den aufgedruckten Präparatenamen per
            Texterkennung. -->
       <div class="scanrow">
-        <button type="button" class="btn cyan" id="scanCamBtn">📷 Foto aufnehmen</button>
-        <button type="button" class="btn ghost" id="scanGalBtn">🖼️ Aus Galerie wählen</button>
+        <button type="button" class="btn cyan" id="scanCamBtn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Foto aufnehmen</button>
+        <button type="button" class="btn ghost" id="scanGalBtn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>Aus Galerie wählen</button>
       </div>
       <input type="file" id="barfileCam" accept="image/*" capture="environment" hidden>
       <input type="file" id="barfileGal" accept="image/*" hidden>
@@ -364,13 +381,13 @@ body.ms-locked{overflow:hidden}
     <h2>Ihre Medikamente <span class="n" id="selN">0</span></h2>
     <div class="chips" id="chips"></div>
     <div class="selactions">
-      <button class="btn ghost small" id="savePlanBtn">💾 Als Plan speichern</button>
+      <button class="btn ghost small" id="savePlanBtn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Als Plan speichern</button>
       <button class="btn ghost small" id="clearBtn">Liste leeren</button>
     </div>
   </section>
 
   <!-- Gespeicherte Pläne & Einnahme-Erinnerungen (gerätelokal) -->
-  <section class="card" id="plansCard" hidden>
+  <section class="card" id="plansCard">
     <h2>Meine Pläne <span class="n" id="planN">0</span></h2>
     <p class="small muted" style="margin:-4px 0 12px">Gespeicherte Medikamentenlisten – nur auf diesem Gerät. Für Einnahme-Erinnerungen exportieren Sie einen Kalender-Termin (<b>.ics</b>, zuverlässig über Ihren Kalender) oder aktivieren die In-App-Erinnerung.</p>
     <div id="planList"></div>
