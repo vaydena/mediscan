@@ -1,12 +1,17 @@
 /* MediScan – Service Worker (Offline-Shell + Referenzdatenbank).
  * Bei App-Änderungen VERSION erhöhen → alter Cache wird verworfen.
  */
-var VERSION = "ms-v1-2026-09-28-41";
+var VERSION = "ms-v1-2026-09-28-42";
 var CACHE = "mediscan-" + VERSION;
 /* Große, versionierte (unveränderliche) OCR-Abhängigkeiten (Tesseract-Kette)
  * getrennt & dauerhaft halten – NICHT bei jedem App-Update mit-verworfen, sonst
  * würde bei jeder VERSION-Erhöhung erneut ~15 MB deu.traineddata geladen. */
 var OCR_CACHE = "mediscan-ocr-v1";
+/* Vorlese-Aufnahmen (Stimme Seraphina, media/tts/<hash>.mp3): inhaltsadressiert,
+ * also unveränderlich → einmal gehört, dauerhaft offline verfügbar, auch über
+ * App-Updates hinweg. Die Liste media/tts/index.json kommt dagegen immer
+ * frisch aus dem Netz (Offline-Fallback: letzte bekannte Liste). */
+var TTS_CACHE = "mediscan-tts-v1";
 
 /* Alles, was die App offline braucht (inkl. der 1,4-MB-Referenz-DB und jsPDF). */
 var SHELL = [
@@ -59,7 +64,7 @@ self.addEventListener("install", function (e) {
 self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.map(function (k) { if (k !== CACHE && k !== OCR_CACHE) return caches.delete(k); }));
+      return Promise.all(keys.map(function (k) { if (k !== CACHE && k !== OCR_CACHE && k !== TTS_CACHE) return caches.delete(k); }));
     }).then(function () { return self.clients.claim(); })
   );
 });
@@ -119,6 +124,30 @@ self.addEventListener("fetch", function (e) {
 
   // Sonstige Fremd-Origins nicht abfangen – online laden lassen.
   if (url.origin !== self.location.origin) return;
+
+  var ttsPath = new URL("media/tts/", self.registration.scope).pathname;
+  if (url.pathname.indexOf(ttsPath) === 0) {
+    if (/\.mp3$/.test(url.pathname) && !req.headers.has("range")) {
+      e.respondWith(
+        caches.open(TTS_CACHE).then(function (c) {
+          return c.match(req).then(function (r) {
+            return r || fetch(req).then(function (resp) {
+              if (resp && resp.ok && resp.status === 200) c.put(req, resp.clone());
+              return resp;
+            });
+          });
+        })
+      );
+    } else if (/\/index\.json$/.test(url.pathname)) {
+      e.respondWith(
+        fetch(req, { cache: "no-cache" }).then(function (resp) {
+          if (resp && resp.ok) { var cp = resp.clone(); caches.open(TTS_CACHE).then(function (c) { c.put(req, cp); }); }
+          return resp;
+        }).catch(function () { return caches.open(TTS_CACHE).then(function (c) { return c.match(req); }); })
+      );
+    }
+    return;
+  }
 
   // Navigationen: erst Netz, dann App-Shell aus dem Cache (Offline-Fallback).
   if (req.mode === "navigate") {

@@ -3,6 +3,7 @@ name: Deploy zu Hostinger
 # Loest bei jedem Push auf main/master (und manuell per workflow_dispatch) ein Deploy aus.
 # Laedt den Seitenbaum (ohne .git/.github/test/tools/deploy-local.*) per FTPS mit curl
 # nach /mediscan/ hoch (Playbook: reference_hostinger_ftps_deploy).
+# Vorlese-Aufnahmen media/tts/ laufen in einem eigenen, inkrementellen Schritt.
 #
 # Lehren (2026-09-02, uebernommen aus lagerverwaltung/schulungsunterlagen):
 # - "530 Login incorrect" = Secret FTP_PASSWORD falsch (z. B. Benutzername statt Passwort).
@@ -94,6 +95,7 @@ jobs:
                      -not -path './supabase/*' \
                      -not -path './test/*' \
                      -not -path './tools/*' \
+                     -not -path './media/tts/*' \
                      -not -path '*/node_modules/*' \
                      -not -name 'deploy-local.ps1' \
                      -not -name 'deploy-local.log' \
@@ -157,6 +159,66 @@ jobs:
           fi
           echo "Alle $n Dateien hochgeladen -> /$FTPDIR/"
 
+      # Vorlese-Aufnahmen (Seraphina, media/tts/<hash>.mp3) inkrementell: Dateinamen sind
+      # inhaltsadressiert, also nur die hochladen, die in der LIVE-index.json noch fehlen.
+      # index.json kommt zuletzt und nur, wenn alle neuen Aufnahmen oben sind - sonst
+      # holt der naechste Deploy die fehlenden nach (die App liest bis dahin mit der
+      # Geraetestimme vor). Groessere Pakete (20 je Login), da es tausende Dateien sind.
+      - name: Vorlese-Aufnahmen hochladen (nur neue)
+        if: steps.guard.outputs.ready == 'true' && hashFiles('media/tts/index.json') != ''
+        env:
+          FTPHOST: ftp.vaydena.de
+          FTPUSER: u424339903.deploy
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTPDIR: mediscan
+          SITE: https://mediscan.vaydena.de
+        run: |
+          set -euo pipefail
+          curl -s --max-time 60 "$SITE/media/tts/index.json?cb=$RANDOM" -o /tmp/live.json || true
+          python3 - <<'PY' > /tmp/todo.txt
+          import json, os
+          try: live = set(json.load(open("/tmp/live.json")))
+          except Exception: live = set()
+          for h in json.load(open("media/tts/index.json")):
+              if h not in live and os.path.exists("media/tts/%s.mp3" % h):
+                  print("media/tts/%s.mp3" % h)
+          PY
+          mapfile -t FILES < /tmp/todo.txt
+          n=${#FILES[@]}; echo "Neue Aufnahmen: $n"
+          ftp() {
+            curl --ssl-reqd -k --connect-timeout 30 --max-time 900 \
+                 --silent --show-error \
+                 --user "$FTPUSER:$FTP_PASSWORD" "$@"
+          }
+          failed=()
+          BATCH=20; i=0
+          while [ $i -lt $n ]; do
+            batch=("${FILES[@]:$i:$BATCH}")
+            args=(); for f in "${batch[@]}"; do args+=(-T "$f" "ftp://$FTPHOST/$FTPDIR/$f"); done
+            rc=0; out=$(ftp --ftp-create-dirs -w '%{exitcode} %{url}\n' "${args[@]}" 2>/tmp/batch.err) || rc=$?
+            if [ $rc -eq 67 ]; then echo "::error::FTP-Login abgelehnt (530) - Secret FTP_PASSWORD pruefen."; exit 67; fi
+            ok=0
+            for f in "${batch[@]}"; do
+              code=$(printf '%s\n' "$out" | awk -v u="ftp://$FTPHOST/$FTPDIR/$f" '$2==u {print $1; exit}')
+              [ -n "$code" ] || code=$rc
+              if [ "$code" = "0" ]; then ok=$((ok+1)); else failed+=("$f"); fi
+            done
+            echo "  $((i+${#batch[@]}))/$n  (Paket: $ok ok)"
+            i=$((i+BATCH)); sleep 1
+          done
+          still=()
+          for f in "${failed[@]}"; do
+            sleep 2
+            rc=0; ftp --fail --ftp-create-dirs -T "$f" "ftp://$FTPHOST/$FTPDIR/$f" -o /dev/null || rc=$?
+            if [ $rc -eq 0 ]; then echo "  OK   einzeln: $f"; else still+=("$f"); fi
+          done
+          if [ ${#still[@]} -gt 0 ]; then
+            echo "::error::${#still[@]} Aufnahme(n) nicht hochgeladen - index.json bleibt auf altem Stand, naechster Deploy holt sie nach: ${still[*]:0:10}"
+            exit 1
+          fi
+          ftp --fail --ftp-create-dirs -T media/tts/index.json "ftp://$FTPHOST/$FTPDIR/media/tts/index.json" -o /dev/null
+          echo "Aufnahmen aktuell ($n neu) -> /$FTPDIR/media/tts/"
+
       # Live-Pruefung ueber HTTPS (mit Cache-Buster): Startseiten-Titel, App-Shell, Marker.
       - name: Verify (HTTPS)
         if: steps.guard.outputs.ready == 'true'
@@ -167,6 +229,12 @@ jobs:
           want=$(grep -o '<title>[^<]*</title>' index.html | head -1)
           have=$(curl -s "$SITE/index.html?cb=$RANDOM" | grep -o '<title>[^<]*</title>' | head -1)
           echo "index.html Titel: lokal=$want live=$have"; [ "$want" = "$have" ] || bad=1
+          if [ -f media/tts/index.json ]; then
+            loc=$(stat -c %s media/tts/index.json); res=$(curl -s -o /dev/null -w '%{http_code} %{size_download}' "$SITE/media/tts/index.json?cb=$RANDOM")
+            echo "media/tts/index.json: lokal=$loc live=$res"; [ "$res" = "200 $loc" ] || bad=1
+            one=$(python3 -c 'import json;print(json.load(open("media/tts/index.json"))[0])' 2>/dev/null || true)
+            if [ -n "$one" ]; then res=$(curl -s -o /dev/null -w '%{http_code}' "$SITE/media/tts/$one.mp3"); echo "media/tts/$one.mp3: live=$res"; [ "$res" = "200" ] || bad=1; fi
+          fi
           for f in app.html impressum.html datenschutz.html agb.html assets/mediscan.css assets/ms-engine.js assets/ms-app.js assets/jspdf.umd.min.js assets/data/mediscan-db.json sw.js manifest.webmanifest deploy-version.txt; do
             loc=$(stat -c %s "$f"); res=$(curl -s -o /dev/null -w '%{http_code} %{size_download}' "$SITE/$f?cb=$RANDOM")
             echo "$f: lokal=$loc live=$res"; [ "$res" = "200 $loc" ] || bad=1
