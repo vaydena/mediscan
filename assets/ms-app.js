@@ -26,6 +26,9 @@
       calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
       bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
       share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/>',
+      file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
+      user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+      lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
       download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>'
     };
     return '<svg class="ico' + (extra ? " " + extra : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
@@ -45,6 +48,14 @@
   }
   function lsGet(k, def) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  // Mehrere Personen (z. B. „Ich", „Mutter") auf einem Gerät: Auswahl, Profil,
+  // Pläne und letzte Prüfung liegen je Person unter eigenem Schlüssel. Die erste
+  // Person nutzt die bisherigen Schlüssel ohne Suffix (bestehende Daten bleiben).
+  var LS_PERSONS = "ms.persons";
+  var persons = lsGet(LS_PERSONS, null);
+  if (!persons || !persons.list || !persons.list.length) persons = { list: [{ id: "p0", name: "Ich" }], cur: "p0" };
+  function K(base, pid) { pid = pid || persons.cur; return pid === "p0" ? base : base + "@" + pid; }
+  function curPerson() { for (var i = 0; i < persons.list.length; i++) if (persons.list[i].id === persons.cur) return persons.list[i]; return persons.list[0]; }
   var toastT = null;
   // toast(msg) – kurze Meldung. toast(msg, {label, onAction}) – mit Aktionsknopf
   // (z. B. „Rückgängig"), bleibt dann länger (6 s) stehen.
@@ -78,7 +89,7 @@
       var h = '<form method="dialog" class="msdlg-f">' +
         '<h3 class="msdlg-t">' + esc(opts.title) + '</h3>' +
         (opts.text ? '<p class="msdlg-x">' + esc(opts.text) + '</p>' : '') +
-        (opts.input != null ? '<input type="text" class="msdlg-in" maxlength="80" value="' + esc(opts.input) + '" aria-label="' + esc(opts.title) + '">' : '') +
+        (opts.input != null ? '<input type="' + (opts.password ? "password" : "text") + '" class="msdlg-in" maxlength="' + (opts.password ? 200 : 80) + '"' + (opts.password ? ' autocomplete="' + (opts.password === "new" ? "new-password" : "current-password") + '"' : '') + ' value="' + esc(opts.input) + '" aria-label="' + esc(opts.title) + '">' : '') +
         '<div class="msdlg-b">' +
         '<button type="button" class="btn ghost small" value="cancel">' + esc(opts.cancel || "Abbrechen") + '</button>' +
         '<button type="submit" class="btn small ' + (opts.danger ? "danger-solid" : "cyan") + '" value="ok">' + esc(opts.ok || "OK") + '</button>' +
@@ -130,7 +141,7 @@
       if (selected.indexOf(id) !== -1) { dup++; return; }
       selected.push(id); added++;
     });
-    if (added) { lsSet(LS_SEL, selected); renderChips(); maybeRerun(); }
+    if (added) { lsSet(K(LS_SEL), selected); renderChips(); maybeRerun(); }
     // Wartet eine erkannte PZN auf Zuordnung? -> gerätelokal mit dieser Wahl merken.
     if (pendingPZN && valid.length) {
       linkPZN(pendingPZN, valid);
@@ -153,7 +164,7 @@
       if (isNaN(id) || !MS.medById(id)) return;
       if (selected.indexOf(id) === -1) { selected.push(id); added++; }
     });
-    if (added) { lsSet(LS_SEL, selected); renderChips(); }
+    if (added) { lsSet(K(LS_SEL), selected); renderChips(); }
     return added;
   }
   // Nach einem Scan (Medikationsplan / OCR / bekannte PZN) die Wechselwirkungen
@@ -204,16 +215,16 @@
   function removeId(id) {
     id = parseInt(id, 10);
     selected = selected.filter(function (x) { return x !== id; });
-    lsSet(LS_SEL, selected); renderChips(); maybeRerun();
+    lsSet(K(LS_SEL), selected); renderChips(); maybeRerun();
   }
   function clearSel() {
     var before = selected.slice(), wasShown = resultsShown;
-    selected = []; lsSet(LS_SEL, selected); renderChips();
+    selected = []; lsSet(K(LS_SEL), selected); renderChips();
     pendingPZN = null; renderPending();
     resultsShown = false; el("results").hidden = true; el("results").innerHTML = "";
     if (before.length) toast("Liste geleert (" + before.length + ").", { label: "Rückgängig", onAction: function () {
       selected = before.filter(function (id) { return !!MS.medById(id); });
-      lsSet(LS_SEL, selected); renderChips();
+      lsSet(K(LS_SEL), selected); renderChips();
       if (wasShown) analyze();
     } });
   }
@@ -249,7 +260,7 @@
   // Die In-App-Erinnerung funktioniert nur, solange die App/der Tab offen ist
   // (kein Server, keine Hintergrund-Pushes – das wäre Phase 2/SaaS). Nichts
   // verlässt das Gerät.
-  function savePlans() { lsSet(LS_PLANS, plans); }
+  function savePlans() { lsSet(K(LS_PLANS), plans); }
   function planId() { return "p_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function findPlan(id) { for (var i = 0; i < plans.length; i++) if (plans[i].id === id) return plans[i]; return null; }
   function planMedIds(plan) {
@@ -273,7 +284,7 @@
   }
   function loadPlan(id) {
     var p = findPlan(id); if (!p) return;
-    selected = planMedIds(p); lsSet(LS_SEL, selected);
+    selected = planMedIds(p); lsSet(K(LS_SEL), selected);
     renderChips(); maybeRerun();
     toast("Plan „" + p.name + "“ geladen (" + selected.length + ").");
     var sc = el("selCard"); if (sc && sc.scrollIntoView) sc.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -377,14 +388,99 @@
   function armTime(plan, hhmm) {
     var d = nextDelay(hhmm); if (d < 0) return;
     notifyTimers.push(setTimeout(function () {   // sehr lange Timeouts sind unzuverlässig -> max ~24h
-      var live = findPlan(plan.id);
+      var live = findPlanAny(plan.id);
       if (live && live.notify && (live.times || []).indexOf(hhmm) !== -1) fireReminder(live, hhmm);
     }, Math.min(d, 24 * 3600 * 1000)));
   }
   function scheduleAllReminders() {
     clearReminders();
     if (!("Notification" in window) || Notification.permission !== "granted") return;
-    plans.forEach(function (p) { if (p.notify) (p.times || []).forEach(function (t) { armTime(p, t); }); });
+    allPlans().forEach(function (p) { if (p.notify) (p.times || []).forEach(function (t) { armTime(p, t); }); });
+  }
+  // Erinnerungen gelten für ALLE Personen, nicht nur die gerade angezeigte.
+  function allPlans() {
+    var out = plans.slice();
+    persons.list.forEach(function (pe) { if (pe.id !== persons.cur) out = out.concat(lsGet(K(LS_PLANS, pe.id), []) || []); });
+    return out;
+  }
+  function findPlanAny(id) { var a = allPlans(); for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
+
+  // Dosierung je Plan: p.doses = { medId: { s: Stärke, m, mi, a, n } } – freie
+  // Eingabe des Nutzers (wie verordnet), keine Vorschläge aus der App.
+  var DOSE_SLOTS = [["m", "Mo", "morgens"], ["mi", "Mi", "mittags"], ["a", "Ab", "abends"], ["n", "Na", "zur Nacht"]];
+  function setDose(pid, mid, f, v) {
+    var p = findPlan(pid); if (!p) return;
+    p.doses = p.doses || {};
+    var d = p.doses[mid] = p.doses[mid] || {};
+    v = String(v || "").trim().slice(0, f === "s" ? 24 : 5);
+    if (v) d[f] = v; else delete d[f];
+    if (!Object.keys(d).length) delete p.doses[mid];
+    savePlans();
+  }
+
+  // Medikationsplan als PDF – angelehnt an den bundeseinheitlichen Plan (BMP),
+  // aber ausdrücklich KEIN offizieller BMP (kein Barcode, nicht ärztlich erstellt).
+  function makeMedPlanPDF(id) {
+    var p = findPlan(id); if (!p) return;
+    if (!window.jspdf || !window.jspdf.jsPDF) { toast("PDF-Bibliothek nicht geladen."); return; }
+    var ids = planMedIds(p);
+    if (!ids.length) { toast("Dieser Plan enthält keine Medikamente."); return; }
+    var doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+    var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
+    var M = 36, CW = PW - 2 * M, y, page = 1;
+    var now = new Date(), ds = pad(now.getDate()) + "." + pad(now.getMonth() + 1) + "." + now.getFullYear();
+    // Spalten: Wirkstoff/Präparat | Wirkstoff(e) | Stärke | Mo | Mi | Ab | Na | Hinweise
+    var cols = [{ t: "Medikament", w: 0.22 }, { t: "Wirkstoff / Gruppe", w: 0.24 }, { t: "Stärke", w: 0.12 },
+                { t: "Mo", w: 0.05, c: 1 }, { t: "Mi", w: 0.05, c: 1 }, { t: "Ab", w: 0.05, c: 1 }, { t: "Na", w: 0.05, c: 1 },
+                { t: "Hinweise (handschriftlich)", w: 0.22 }];
+    var x = M; cols.forEach(function (c) { c.x = x; c.pw = c.w * CW; x += c.pw; });
+    function foot() {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(120);
+      doc.text(pdfSafe("Selbst erstellt mit MediScan – kein bundeseinheitlicher Medikationsplan (BMP). Dosierung wie vom Nutzer eingetragen; maßgeblich ist die ärztliche Verordnung."), M, PH - 20);
+      doc.text("Seite " + page, PW - M, PH - 20, { align: "right" });
+    }
+    function head() {
+      doc.setFillColor(0, 105, 92); doc.rect(0, 0, PW, 62, "F");
+      doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(17);
+      doc.text("Medikationsplan", M, 30);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+      doc.text(pdfSafe("für: " + curPerson().name + "   ·   Plan: " + p.name), M, 48);
+      doc.text("Stand: " + ds, PW - M, 30, { align: "right" });
+      y = 80;
+      doc.setFillColor(232, 242, 240); doc.rect(M, y, CW, 20, "F");
+      doc.setTextColor(0, 77, 64); doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      cols.forEach(function (c) { doc.text(pdfSafe(c.t), c.c ? c.x + c.pw / 2 : c.x + 5, y + 13, c.c ? { align: "center" } : undefined); });
+      y += 20;
+    }
+    head();
+    doc.setDrawColor(200);
+    ids.forEach(function (mid, i) {
+      var m = MS.medById(mid), d = (p.doses && p.doses[mid]) || {};
+      var cells = [m.name, [m.activeIngredient || "", m.category || ""].filter(Boolean).join(" · "), d.s || "", d.m || "", d.mi || "", d.a || "", d.n || "", ""];
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+      var lines = cells.map(function (t, k) { return doc.splitTextToSize(pdfSafe(t), cols[k].pw - 10); });
+      var hh = Math.max(26, 8 + 12 * Math.max.apply(null, lines.map(function (l) { return l.length; })));
+      if (y + hh > PH - 36) { foot(); doc.addPage(); page++; head(); doc.setDrawColor(200); }
+      if (i % 2) { doc.setFillColor(248, 250, 250); doc.rect(M, y, CW, hh, "F"); }
+      doc.setTextColor(30);
+      lines.forEach(function (l, k) {
+        var c = cols[k];
+        doc.setFont("helvetica", k === 0 ? "bold" : "normal");
+        l.forEach(function (ln, j) { doc.text(ln, c.c ? c.x + c.pw / 2 : c.x + 5, y + 15 + j * 12, c.c ? { align: "center" } : undefined); });
+      });
+      doc.line(M, y + hh, M + CW, y + hh);
+      y += hh;
+    });
+    cols.slice(1).forEach(function (c) { doc.line(c.x, 80, c.x, y); });
+    doc.rect(M, 80, CW, y - 80);
+    y += 16;
+    if (p.times && p.times.length) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(60);
+      doc.text(pdfSafe("Erinnerungszeiten: " + p.times.join(", ") + " Uhr"), M, y);
+    }
+    foot();
+    var safe = (p.name || "Plan").replace(/[^0-9A-Za-zäöüÄÖÜß-]+/g, "_").slice(0, 40) || "Plan";
+    try { doc.save("Medikationsplan_" + safe + ".pdf"); toast("Medikationsplan erstellt."); } catch (e) { toast("PDF konnte nicht erstellt werden."); }
   }
 
   function renderPlans() {
@@ -419,12 +515,28 @@
         '<div class="mplan-prev small muted">' + esc(preview || "—") + '</div></div>';
       h += '<div class="mplan-bt">' +
         '<button type="button" class="btn small" data-act="load" data-id="' + esc(p.id) + '">Laden</button>' +
-        '<button type="button" class="btn ghost small" data-act="toggle" data-id="' + esc(p.id) + '">' + (open ? "Schließen" : (svgIcon("clock") + "Erinnern")) + '</button>' +
+        '<button type="button" class="btn ghost small" data-act="toggle" data-id="' + esc(p.id) + '">' + (open ? "Schließen" : (svgIcon("clock") + "Einnahme")) + '</button>' +
         '<button type="button" class="btn ghost small" data-act="rename" data-id="' + esc(p.id) + '">Umbenennen</button>' +
         '<button type="button" class="btn ghost small danger" data-act="del" data-id="' + esc(p.id) + '">Löschen</button>' +
         '</div></div>';
       if (open) {
         h += '<div class="mplan-rem">';
+        h += '<div class="dose-hd"><b class="small">Dosierung</b><span class="small muted"> – Stärke und Stück je Tageszeit, wie verordnet (optional)</span></div>';
+        h += '<div class="dose-tbl" role="table" aria-label="Dosierung">' +
+          '<div class="dose-row dose-head" role="row"><span role="columnheader">Medikament</span><span role="columnheader">Stärke</span>' +
+          DOSE_SLOTS.map(function (sl) { return '<span role="columnheader" title="' + sl[2] + '">' + sl[1] + '</span>'; }).join("") + '</div>';
+        planMedIds(p).forEach(function (mid) {
+          var d = (p.doses && p.doses[mid]) || {};
+          var at = ' data-pid="' + esc(p.id) + '" data-mid="' + mid + '"';
+          h += '<div class="dose-row" role="row"><span class="dose-nm" role="cell">' + esc(MS.medById(mid).name) + '</span>' +
+            '<span role="cell"><input class="dose-in dose-s"' + at + ' data-f="s" maxlength="24" placeholder="z. B. 100 mg" value="' + esc(d.s || "") + '" aria-label="Stärke ' + esc(MS.medById(mid).name) + '"></span>' +
+            DOSE_SLOTS.map(function (sl) {
+              return '<span role="cell"><input class="dose-in dose-n"' + at + ' data-f="' + sl[0] + '" maxlength="5" placeholder="–" value="' + esc(d[sl[0]] || "") + '" aria-label="' + sl[2] + ' ' + esc(MS.medById(mid).name) + '"></span>';
+            }).join("") + '</div>';
+        });
+        h += '</div>';
+        h += '<div class="rem-actions"><button type="button" class="btn ghost small" data-act="medpdf" data-id="' + esc(p.id) + '">' + svgIcon("file") + 'Medikationsplan (PDF)</button></div>';
+        h += '<div class="dose-hd"><b class="small">Erinnerung</b></div>';
         h += '<div class="rem-times">' + ((p.times && p.times.length) ? p.times.map(function (t) {
           return '<span class="timechip">' + esc(t) + '<button type="button" class="x" data-act="rmtime" data-id="' + esc(p.id) + '" data-t="' + esc(t) + '" aria-label="Zeit entfernen">×</button></span>';
         }).join("") : '<span class="small muted">Noch keine Einnahmezeit.</span>') + '</div>';
@@ -441,6 +553,135 @@
       h += '</div>';
       return h;
     }).join("");
+  }
+
+  // ---- Personen ---------------------------------------------------------------
+  function savePersons() { lsSet(LS_PERSONS, persons); }
+  function renderPersons() {
+    var sel = el("personSel"); if (!sel) return;
+    sel.innerHTML = persons.list.map(function (pe) {
+      return '<option value="' + esc(pe.id) + '"' + (pe.id === persons.cur ? " selected" : "") + '>' + esc(pe.name) + '</option>';
+    }).join("");
+    var del = el("personDel"); if (del) del.hidden = persons.list.length < 2;
+  }
+  function switchPerson(id, quiet) {
+    if (!id || id === persons.cur) return;
+    persons.cur = id; savePersons();
+    stopSpeak();
+    selected = (lsGet(K(LS_SEL), []) || []).map(function (x) { return parseInt(x, 10); }).filter(function (i) { return !!MS.medById(i); });
+    profile = lsGet(K(LS_PROF), []) || [];
+    plans = lsGet(K(LS_PLANS), []) || [];
+    openPlan = null;
+    var res = el("results"); if (res) { res.hidden = true; res.innerHTML = ""; }
+    resultsShown = false;
+    renderPersons(); renderToggles(); renderChips(); renderPlans(); scheduleAllReminders();
+    var ex = el("exampleBox"); if (ex) ex.hidden = !!selected.length;
+    if (!quiet) toast("Person: " + curPerson().name);
+  }
+  function addPerson() {
+    askText("Name der Person", "").then(function (name) {
+      if (name === null) return;
+      name = (name || "").trim(); if (!name) return;
+      var id = "p" + Date.now().toString(36);
+      persons.list.push({ id: id, name: name.slice(0, 40) }); savePersons();
+      switchPerson(id);
+    });
+  }
+  function renamePerson() {
+    var pe = curPerson();
+    askText("Person umbenennen", pe.name).then(function (name) {
+      if (name === null) return;
+      pe.name = ((name || "").trim() || pe.name).slice(0, 40); savePersons(); renderPersons();
+    });
+  }
+  function deletePerson() {
+    if (persons.list.length < 2) return;
+    var pe = curPerson();
+    askConfirm("Person entfernen?", "Auswahl, Profil und Pläne von „" + pe.name + "“ werden von diesem Gerät gelöscht.", "Entfernen", true).then(function (ok) {
+      if (!ok) return;
+      [LS_SEL, LS_PROF, LS_PLANS, LS_LAST].forEach(function (b) {
+        if (pe.id !== "p0") { try { localStorage.removeItem(K(b, pe.id)); } catch (e) {} }
+        else lsSet(b, b === LS_LAST ? null : []);
+      });
+      persons.list = persons.list.filter(function (x) { return x.id !== pe.id; });
+      persons.cur = null; switchPerson(persons.list[0].id, true);
+      toast("„" + pe.name + "“ entfernt.");
+    });
+  }
+
+  // ---- Verschlüsselte Sicherung (WebCrypto: PBKDF2-SHA-256 + AES-GCM) ----------
+  // Enthält alle MediScan-Daten dieses Geräts außer dem Lizenzschlüssel. Das
+  // Passwort verlässt das Gerät nie; ohne Passwort ist die Datei nicht lesbar.
+  var BK_ITER = 250000;
+  function b64(buf) { var b = new Uint8Array(buf), s = ""; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
+  function unb64(str) { var s = atob(str), b = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+  function bkKey(pw, salt, iter) {
+    var enc = new TextEncoder();
+    return crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]).then(function (base) {
+      return crypto.subtle.deriveKey({ name: "PBKDF2", salt: salt, iterations: iter, hash: "SHA-256" }, base,
+        { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    });
+  }
+  function backupKeys() {
+    var out = {};
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf("ms.") === 0 && k !== "ms.lic" && k.indexOf("ms.install") !== 0) out[k] = localStorage.getItem(k);
+    }
+    return out;
+  }
+  function exportBackup() {
+    if (!(window.crypto && crypto.subtle && window.TextEncoder)) { toast("Verschlüsselung wird von diesem Browser nicht unterstützt."); return; }
+    msDialog({ title: "Passwort für die Sicherung", text: "Mindestens 8 Zeichen. Ohne dieses Passwort lässt sich die Datei nicht wiederherstellen – bitte gut merken.", input: "", password: "new", ok: "Weiter" }).then(function (pw) {
+      if (pw === null) return;
+      if ((pw || "").length < 8) { toast("Das Passwort braucht mindestens 8 Zeichen."); return; }
+      return msDialog({ title: "Passwort wiederholen", input: "", password: "new", ok: "Sicherung erstellen" }).then(function (pw2) {
+        if (pw2 === null) return;
+        if (pw2 !== pw) { toast("Die Passwörter stimmen nicht überein."); return; }
+        var salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+        var plain = new TextEncoder().encode(JSON.stringify({ app: "MediScan", at: new Date().toISOString(), data: backupKeys() }));
+        return bkKey(pw, salt, BK_ITER).then(function (key) {
+          return crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, plain);
+        }).then(function (ct) {
+          var file = { format: "mediscan-backup", v: 1, kdf: "PBKDF2-SHA256", iter: BK_ITER, cipher: "AES-GCM", salt: b64(salt), iv: b64(iv), data: b64(ct) };
+          var d = new Date();
+          if (download("MediScan_Sicherung_" + d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + ".msbak", JSON.stringify(file), "application/json"))
+            toast("Sicherung erstellt (verschlüsselt).");
+        });
+      });
+    }).catch(function () { toast("Sicherung fehlgeschlagen."); });
+  }
+  function importBackup(f) {
+    if (!f) return;
+    if (!(window.crypto && crypto.subtle && window.TextDecoder)) { toast("Verschlüsselung wird von diesem Browser nicht unterstützt."); return; }
+    if (f.size > 5 * 1024 * 1024) { toast("Datei ist zu groß für eine MediScan-Sicherung."); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var file; try { file = JSON.parse(rd.result); } catch (e) { file = null; }
+      if (!file || file.format !== "mediscan-backup" || !file.salt || !file.iv || !file.data) { toast("Keine gültige MediScan-Sicherung."); return; }
+      var iter = Math.min(Math.max(parseInt(file.iter, 10) || BK_ITER, 100000), 2000000);
+      msDialog({ title: "Passwort der Sicherung", input: "", password: "cur", ok: "Entschlüsseln" }).then(function (pw) {
+        if (pw === null) return;
+        return bkKey(pw, unb64(file.salt), iter).then(function (key) {
+          return crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(file.iv) }, key, unb64(file.data));
+        }).then(function (buf) {
+          var obj = JSON.parse(new TextDecoder().decode(buf));
+          var data = obj && obj.data; if (!data || typeof data !== "object") throw new Error("leer");
+          var n = Object.keys(data).filter(function (k) { return k.indexOf("ms.") === 0 && k !== "ms.lic"; }).length;
+          return askConfirm("Sicherung einspielen?", "Die aktuellen MediScan-Daten auf diesem Gerät werden durch die Sicherung vom " + deDate(obj.at) + " ersetzt (" + n + " Einträge).", "Einspielen", true).then(function (ok) {
+            if (!ok) return;
+            Object.keys(backupKeys()).forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+            Object.keys(data).forEach(function (k) {
+              if (k.indexOf("ms.") === 0 && k !== "ms.lic" && typeof data[k] === "string") { try { localStorage.setItem(k, data[k]); } catch (e) {} }
+            });
+            toast("Sicherung eingespielt – App wird neu geladen.");
+            setTimeout(function () { location.reload(); }, 900);
+          });
+        }, function () { toast("Falsches Passwort oder beschädigte Datei."); });
+      });
+    };
+    rd.onerror = function () { toast("Datei konnte nicht gelesen werden."); };
+    rd.readAsText(f);
   }
 
   // ---- Manuelle Suche + Autocomplete ----------------------------------------
@@ -487,7 +728,7 @@
   function toggleProfile(key) {
     var i = profile.indexOf(key);
     if (i === -1) profile.push(key); else profile.splice(i, 1);
-    lsSet(LS_PROF, profile); renderToggles(); maybeRerun();
+    lsSet(K(LS_PROF), profile); renderToggles(); maybeRerun();
   }
 
   // ---- OCR (Tesseract, faul geladen) ----------------------------------------
@@ -1042,14 +1283,14 @@
     r.interactions.forEach(function (it) { items.push({ k: "i|" + it.title + "|" + it.drug1 + "|" + it.drug2, t: it.title + " (" + it.drug1 + " + " + it.drug2 + ")" }); });
     r.complex.forEach(function (c) { items.push({ k: "c|" + c.title, t: c.title }); });
     r.risks.forEach(function (rk) { items.push({ k: "r|" + rk.title + "|" + rk.medName, t: rk.title + " (" + rk.medName + ")" }); });
-    var last = lsGet(LS_LAST, null), prevKeys = null;
+    var last = lsGet(K(LS_LAST), null), prevKeys = null;
     if (last && last.keys && last.ids && last.ids.some(function (id) { return selected.indexOf(id) !== -1; })) {
       prevKeys = {}; last.keys.forEach(function (x) { prevKeys[x.k] = x.t; });
     }
     var nowKeys = {}; items.forEach(function (x) { nowKeys[x.k] = 1; });
     var isNew = function (k) { return !!prevKeys && !(k in prevKeys); };
     var gone = prevKeys ? Object.keys(prevKeys).filter(function (k) { return !nowKeys[k]; }).map(function (k) { return prevKeys[k]; }) : [];
-    lsSet(LS_LAST, { ids: selected.slice(), keys: items.slice(0, 300), at: Date.now() });
+    lsSet(K(LS_LAST), { ids: selected.slice(), keys: items.slice(0, 300), at: Date.now() });
     var ki = 0;
     function nextKey() { return items[ki++].k; }
 
@@ -1507,7 +1748,24 @@
       else if (act === "rmtime") removeTime(id, b.getAttribute("data-t"));
       else if (act === "ics") exportICS(id);
       else if (act === "notify") toggleNotify(id);
+      else if (act === "medpdf") makeMedPlanPDF(id);
     });
+    if (pl) pl.addEventListener("change", function (e) {
+      var t = e.target; if (!t.classList || !t.classList.contains("dose-in")) return;
+      setDose(t.getAttribute("data-pid"), t.getAttribute("data-mid"), t.getAttribute("data-f"), t.value);
+    });
+
+    // Personen & Sicherung
+    var psel = el("personSel"); if (psel) psel.addEventListener("change", function () { switchPerson(psel.value); });
+    var pa = el("personAdd"); if (pa) pa.addEventListener("click", addPerson);
+    var pr = el("personRen"); if (pr) pr.addEventListener("click", renamePerson);
+    var pd = el("personDel"); if (pd) pd.addEventListener("click", deletePerson);
+    var bex = el("backupExport"); if (bex) bex.addEventListener("click", exportBackup);
+    var bim = el("backupImport"), bf = el("backupFile");
+    if (bim && bf) {
+      bim.addEventListener("click", function () { try { bf.click(); } catch (x) {} });
+      bf.addEventListener("change", function (e) { var f = e.target.files && e.target.files[0]; try { e.target.value = ""; } catch (x) {} importBackup(f); });
+    }
 
     el("toggles").addEventListener("click", function (e) {
       var b = e.target.closest("button.toggle[data-key]"); if (b) toggleProfile(b.getAttribute("data-key"));
@@ -1564,9 +1822,10 @@
   function boot() {
     if (!MS) { toast("Fehler: Engine nicht geladen."); return; }
     applyPlain();
-    profile = lsGet(LS_PROF, []) || [];
+    profile = lsGet(K(LS_PROF), []) || [];
     pznMap = lsGet(LS_PZN, {}) || {};
-    plans = lsGet(LS_PLANS, []) || [];
+    plans = lsGet(K(LS_PLANS), []) || [];
+    renderPersons();
     renderToggles();
     wire();
     var btn = el("analyzeBtn"); btn.disabled = true; btn.textContent = "Datenbank wird geladen …";
@@ -1574,8 +1833,8 @@
       ready = true;
       var meta = MS.meta();
       // gespeicherte Auswahl auf noch existierende IDs filtern
-      selected = (lsGet(LS_SEL, []) || []).map(function (x) { return parseInt(x, 10); }).filter(function (id) { return !!MS.medById(id); });
-      lsSet(LS_SEL, selected);
+      selected = (lsGet(K(LS_SEL), []) || []).map(function (x) { return parseInt(x, 10); }).filter(function (id) { return !!MS.medById(id); });
+      lsSet(K(LS_SEL), selected);
       renderChips();
       renderPlans(); scheduleAllReminders();
       btn.disabled = false; updateAnalyzeBtn();
