@@ -322,6 +322,7 @@ body.ms-locked{overflow:hidden}
         <div class="ac" id="ac" hidden></div>
       </div>
       <p class="small muted" style="margin:8px 2px 0">Tippen Sie einen Namen oder Wirkstoff – auch Handelsnamen wie „Beloc" oder „Godamed".</p>
+      <div id="exampleBox" class="example-box" hidden><span class="small muted">Noch nichts ausgewählt?</span> <button id="exampleBtn" class="btn ghost small" type="button">Beispiel ansehen: Aspirin + Ibuprofen</button></div>
     </div>
 
     <div class="hr" style="margin:18px 0 16px"></div>
@@ -386,15 +387,8 @@ body.ms-locked{overflow:hidden}
     </div>
   </section>
 
-  <!-- Gespeicherte Pläne & Einnahme-Erinnerungen (gerätelokal) -->
-  <section class="card" id="plansCard">
-    <h2>Meine Pläne <span class="n" id="planN">0</span></h2>
-    <p class="small muted" style="margin:-4px 0 12px">Gespeicherte Medikamentenlisten – nur auf diesem Gerät. Für Einnahme-Erinnerungen exportieren Sie einen Kalender-Termin (<b>.ics</b>, zuverlässig über Ihren Kalender) oder aktivieren die In-App-Erinnerung.</p>
-    <div id="planList"></div>
-  </section>
-
   <!-- Patientenprofil -->
-  <section class="card">
+  <section class="card" id="profileCard">
     <h2><span class="step" aria-hidden="true">2</span>Patientenprofil <span class="n">optional</span></h2>
     <p class="small muted" style="margin:-4px 0 12px">Aktivieren Sie zutreffende Punkte, um zusätzlich auf besondere Risiken zu prüfen.</p>
     <div class="toggles" id="toggles"></div>
@@ -404,6 +398,13 @@ body.ms-locked{overflow:hidden}
 
   <!-- Ergebnisse -->
   <section id="results" hidden></section>
+
+  <!-- Gespeicherte Pläne & Einnahme-Erinnerungen (gerätelokal) -->
+  <section class="card" id="plansCard">
+    <h2>Meine Pläne <span class="n" id="planN">0</span></h2>
+    <p class="small muted" style="margin:-4px 0 12px">Gespeicherte Medikamentenlisten – nur auf diesem Gerät. Für Einnahme-Erinnerungen exportieren Sie einen Kalender-Termin (<b>.ics</b>, zuverlässig über Ihren Kalender) oder aktivieren die In-App-Erinnerung.</p>
+    <div id="planList"></div>
+  </section>
 </main>
 
 <script src="assets/jspdf.umd.min.js"></script>

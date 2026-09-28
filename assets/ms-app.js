@@ -8,6 +8,7 @@
   var DB_URL = "assets/data/mediscan-db.json";
   var FDA_URL = "assets/data/mediscan-fda.json";   // separate, öffentliche FDA-Datenebene (lazy)
   var LS_SEL = "ms.sel", LS_PROF = "ms.profile", LS_PZN = "ms.pzn", LS_PLANS = "ms.plans";
+  var LS_LAST = "ms.last", LS_PLAIN = "ms.plain";
   var TESS_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   var ZXING_CDN = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
 
@@ -45,12 +46,64 @@
   function lsGet(k, def) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   var toastT = null;
-  function toast(msg) {
+  // toast(msg) – kurze Meldung. toast(msg, {label, onAction}) – mit Aktionsknopf
+  // (z. B. „Rückgängig"), bleibt dann länger (6 s) stehen.
+  function toast(msg, action) {
     var t = el("ms-toast");
     if (!t) { t = document.createElement("div"); t.id = "ms-toast"; t.className = "toast"; t.setAttribute("role", "status"); t.setAttribute("aria-live", "polite"); document.body.appendChild(t); }
-    t.textContent = msg; t.style.opacity = "1";
-    clearTimeout(toastT); toastT = setTimeout(function () { t.style.transition = "opacity .4s"; t.style.opacity = "0"; }, 2600);
+    t.innerHTML = "";
+    var span = document.createElement("span"); span.textContent = msg; t.appendChild(span);
+    if (action && action.label && typeof action.onAction === "function") {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "toast-act"; b.textContent = action.label;
+      b.onclick = function () { t.style.opacity = "0"; t.style.pointerEvents = "none"; clearTimeout(toastT); action.onAction(); };
+      t.appendChild(b);
+    }
+    t.style.transition = ""; t.style.opacity = "1"; t.style.pointerEvents = "";
+    clearTimeout(toastT); toastT = setTimeout(function () { t.style.transition = "opacity .4s"; t.style.opacity = "0"; t.style.pointerEvents = "none"; }, action ? 6000 : 2600);
   }
+
+  // Eigene, barrierearme Dialoge statt window.prompt/confirm (die auf Handys
+  // unschön aussehen und in installierten PWAs teils blockiert sind).
+  // Liefert ein Promise: ask → String|null, confirm → true|false.
+  function msDialog(opts) {
+    return new Promise(function (resolve) {
+      var d = document.createElement("dialog");
+      if (typeof d.showModal !== "function") {                 // sehr alte Browser → Fallback
+        if (opts.input != null) resolve(window.prompt(opts.title, opts.input));
+        else resolve(window.confirm(opts.title + (opts.text ? "\n\n" + opts.text : "")));
+        return;
+      }
+      d.className = "msdlg";
+      var h = '<form method="dialog" class="msdlg-f">' +
+        '<h3 class="msdlg-t">' + esc(opts.title) + '</h3>' +
+        (opts.text ? '<p class="msdlg-x">' + esc(opts.text) + '</p>' : '') +
+        (opts.input != null ? '<input type="text" class="msdlg-in" maxlength="80" value="' + esc(opts.input) + '" aria-label="' + esc(opts.title) + '">' : '') +
+        '<div class="msdlg-b">' +
+        '<button type="button" class="btn ghost small" value="cancel">' + esc(opts.cancel || "Abbrechen") + '</button>' +
+        '<button type="submit" class="btn small ' + (opts.danger ? "danger-solid" : "cyan") + '" value="ok">' + esc(opts.ok || "OK") + '</button>' +
+        '</div></form>';
+      d.innerHTML = h;
+      document.body.appendChild(d);
+      var inp = d.querySelector(".msdlg-in"), done = false;
+      function finish(v) {
+        if (done) return; done = true;
+        try { d.close(); } catch (e) {}
+        setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 0);
+        resolve(v);
+      }
+      d.querySelector('button[value="cancel"]').onclick = function () { finish(opts.input != null ? null : false); };
+      d.querySelector("form").addEventListener("submit", function (e) {
+        e.preventDefault(); finish(opts.input != null ? (inp ? inp.value : "") : true);
+      });
+      d.addEventListener("cancel", function (e) { e.preventDefault(); finish(opts.input != null ? null : false); });
+      d.addEventListener("click", function (e) { if (e.target === d) finish(opts.input != null ? null : false); });
+      d.showModal();
+      if (inp) { inp.focus(); try { inp.select(); } catch (e) {} }
+    });
+  }
+  function askText(title, def, okLabel) { return msDialog({ title: title, input: def || "", ok: okLabel || "Speichern" }); }
+  function askConfirm(title, text, okLabel, danger) { return msDialog({ title: title, text: text, ok: okLabel || "OK", danger: !!danger }); }
 
   // ---- Zustand --------------------------------------------------------------
   var selected = [];          // Med-IDs (Zahlen)
@@ -154,12 +207,27 @@
     lsSet(LS_SEL, selected); renderChips(); maybeRerun();
   }
   function clearSel() {
+    var before = selected.slice(), wasShown = resultsShown;
     selected = []; lsSet(LS_SEL, selected); renderChips();
+    pendingPZN = null; renderPending();
     resultsShown = false; el("results").hidden = true; el("results").innerHTML = "";
+    if (before.length) toast("Liste geleert (" + before.length + ").", { label: "Rückgängig", onAction: function () {
+      selected = before.filter(function (id) { return !!MS.medById(id); });
+      lsSet(LS_SEL, selected); renderChips();
+      if (wasShown) analyze();
+    } });
+  }
+  // Prüf-Button zeigt die Anzahl der Medikamente und ist ohne Auswahl gedimmt.
+  function updateAnalyzeBtn() {
+    var b = el("analyzeBtn"); if (!b || !ready) return;
+    b.textContent = selected.length ? ("Wechselwirkungen prüfen (" + selected.length + ")") : "Wechselwirkungen prüfen";
+    b.classList.toggle("idle", !selected.length);
   }
   function renderChips() {
     var card = el("selCard"), chips = el("chips"), n = el("selN");
     n.textContent = selected.length;
+    updateAnalyzeBtn();
+    var ex = el("exampleBox"); if (ex) ex.hidden = !!selected.length || !ready;
     if (!selected.length) { card.hidden = true; chips.innerHTML = ""; return; }
     card.hidden = false;
     chips.innerHTML = selected.map(function (id) {
@@ -194,12 +262,14 @@
     if (!selected.length) { toast("Bitte zuerst Medikamente hinzufügen."); return; }
     var def = MS.medById(selected[0]) ? MS.medById(selected[0]).name : "Mein Plan";
     if (selected.length > 1) def += " +" + (selected.length - 1);
-    var name = window.prompt("Name für diesen Plan:", def);
-    if (name === null) return;
-    name = (name || "").trim() || def;
-    plans.push({ id: planId(), name: name, created: Date.now(), medIds: selected.slice(), times: [], notify: false });
-    savePlans(); renderPlans();
-    toast("Plan „" + name + "“ gespeichert (nur auf diesem Gerät).");
+    var ids = selected.slice();
+    askText("Name für diesen Plan", def).then(function (name) {
+      if (name === null) return;
+      name = (name || "").trim() || def;
+      plans.push({ id: planId(), name: name, created: Date.now(), medIds: ids, times: [], notify: false });
+      savePlans(); renderPlans();
+      toast("Plan „" + name + "“ gespeichert (nur auf diesem Gerät).");
+    });
   }
   function loadPlan(id) {
     var p = findPlan(id); if (!p) return;
@@ -210,17 +280,25 @@
   }
   function deletePlan(id) {
     var p = findPlan(id); if (!p) return;
-    if (!window.confirm("Plan „" + p.name + "“ wirklich löschen?")) return;
-    plans = plans.filter(function (x) { return x.id !== id; });
-    if (openPlan === id) openPlan = null;
-    savePlans(); renderPlans(); scheduleAllReminders();
-    toast("Plan gelöscht.");
+    askConfirm("Plan löschen?", "„" + p.name + "“ wird von diesem Gerät entfernt.", "Löschen", true).then(function (ok) {
+      if (!ok) return;
+      var idx = plans.indexOf(p);
+      plans = plans.filter(function (x) { return x.id !== id; });
+      if (openPlan === id) openPlan = null;
+      savePlans(); renderPlans(); scheduleAllReminders();
+      toast("Plan „" + p.name + "“ gelöscht.", { label: "Rückgängig", onAction: function () {
+        if (findPlan(p.id)) return;
+        plans.splice(Math.min(Math.max(idx, 0), plans.length), 0, p);
+        savePlans(); renderPlans(); scheduleAllReminders();
+      } });
+    });
   }
   function renamePlan(id) {
     var p = findPlan(id); if (!p) return;
-    var name = window.prompt("Plan umbenennen:", p.name);
-    if (name === null) return;
-    p.name = (name || "").trim() || p.name; savePlans(); renderPlans();
+    askText("Plan umbenennen", p.name).then(function (name) {
+      if (name === null) return;
+      p.name = (name || "").trim() || p.name; savePlans(); renderPlans();
+    });
   }
   function addTime(id, val) {
     var p = findPlan(id); if (!p) return;
@@ -569,7 +647,11 @@
 
   async function runOCR(file) {
     var thumb = el("thumb");
-    try { thumb.src = URL.createObjectURL(file); thumb.hidden = false; } catch (e) {}
+    try {
+      // Vorheriges Vorschaubild freigeben (sonst bleibt jedes Foto bis zum Neuladen im Speicher).
+      if (thumb.src && thumb.src.indexOf("blob:") === 0) URL.revokeObjectURL(thumb.src);
+      thumb.src = URL.createObjectURL(file); thumb.hidden = false;
+    } catch (e) {}
     showRaw("");
     showOCR(true); setBar(3, "Bild wird aufbereitet …");
     var worker = null;
@@ -825,25 +907,69 @@
     if (hd && hd.focus) { try { hd.focus({ preventScroll: true }); } catch (e) { try { hd.focus(); } catch (x) {} } }
   }
 
+  // Beschreibungstexte der DB sind in Abschnitte gegliedert („MECHANISMUS: …",
+  // „KLINISCHE FOLGEN: …", „MASSNAHMEN: …"). Wir sortieren NUR um – kein Wort
+  // wird erfunden oder umformuliert:
+  //   „Was kann passieren?" ← KLINISCHE FOLGEN / KLINISCHES BILD
+  //   „Was ist zu tun?"     ← MASSNAHMEN
+  //   „Warum diese Warnung?" (aufklappbar) ← MECHANISMUS und alle übrigen Abschnitte
+  var SEC_HAPPEN = { "KLINISCHE FOLGEN": 1, "KLINISCHES BILD": 1 };
+  var SEC_TODO = { "MASSNAHMEN": 1 };
+  function splitSections(text) {
+    var out = { lead: [], happen: [], todo: [], why: [] };
+    String(text || "").split(/\n\s*\n/).forEach(function (para) {
+      para = para.trim(); if (!para) return;
+      var m = /^([A-ZÄÖÜ][A-ZÄÖÜß0-9 \-\/&().]{2,40}):\s*([\s\S]*)$/.exec(para);
+      if (!m) { out.lead.push(para); return; }
+      var head = m[1].trim(), body = m[2].trim();
+      if (SEC_HAPPEN[head]) out.happen.push(body);
+      else if (SEC_TODO[head]) out.todo.push(body);
+      else out.why.push({ head: head, body: body });
+    });
+    return out;
+  }
+  // Glyphen je Stufe – zusätzlich zur Farbe (farbenblind-tauglich):
+  // 1 i · 2 ! · 3 !! · 4 × ; Doppelungen „=".
+  // „ZEITLICHER VERLAUF" → „Zeitlicher Verlauf"; Kürzel wie FDA/EMA/COPD bleiben.
+  function prettyHead(hd) {
+    return hd.split(/([\s\-\/]+)/).map(function (w) {
+      if (/^[A-Z]{2,4}$/.test(w) && !/^(BEI|DER|DIE|DAS|UND|ALS)$/.test(w)) return w;
+      return w.charAt(0) + w.slice(1).toLowerCase();
+    }).join("");
+  }
+  function sevGlyph(rank) { return rank >= 4 ? "×" : rank === 3 ? "!!" : rank === 2 ? "!" : rank === 1 ? "i" : ""; }
   function card(sevObj, title, o) {
     var rank = sevObj.rank || 0;
-    var cls = "sev" + rank;
-    // Schweregrad-Ring (rein optisch): Füllgrad = rank/4, Glyph wie im Ergebnis-Banner.
+    var cls = o.cls || ("sev" + rank);
+    // Schweregrad-Ring (rein optisch): Füllgrad = rank/4.
     var C = 100.53;                                              // Umfang 2·π·16
     var off = (C * (1 - Math.max(0, Math.min(4, rank)) / 4)).toFixed(2);
-    var glyph = rank >= 2 ? "!" : (rank === 1 ? "i" : "");
-    var h = '<div class="res ' + cls + '">';
-    h += '<div class="head"><div class="ttl">' + esc(title) + '</div>';
+    var glyph = o.glyph != null ? o.glyph : sevGlyph(rank);
+    var h = '<div class="res ' + cls + '"' + (o.key ? ' data-key="' + esc(o.key) + '"' : '') + '>';
+    h += '<div class="head"><div class="ttl">' + (o.isNew ? '<span class="newtag">Neu</span>' : '') + esc(title) + '</div>';
     h += '<div class="sevmark">' +
       '<svg class="sevring" viewBox="0 0 40 40" aria-hidden="true" style="--ring-c:' + C + ';--ring-o:' + off + '">' +
       '<circle class="sevring-bg" cx="20" cy="20" r="16"/>' +
       '<circle class="sevring-fg" cx="20" cy="20" r="16" transform="rotate(-90 20 20)"/>' +
-      '<text class="sevring-gl" x="20" y="20">' + glyph + '</text>' +
+      '<text class="sevring-gl" x="20" y="20">' + esc(glyph) + '</text>' +
       '</svg>' +
-      '<span class="sevmark-lb">' + esc(sevObj.label) + '</span></div></div>';
+      '<span class="sevmark-lb">' + esc(o.label || sevObj.label) + '</span></div></div>';
     if (o.pair) h += '<div class="pair">' + o.pair + '</div>';
     if (o.medtags) h += '<div class="medtags">' + o.medtags + '</div>';
-    if (o.desc) h += '<div class="desc">' + esc(o.desc) + '</div>';
+    if (o.desc) {
+      var sec = splitSections(o.desc);
+      if (sec.lead.length) h += '<div class="desc">' + esc(sec.lead.join("\n\n")) + '</div>';
+      if (sec.happen.length) h += '<div class="sec sec-happen"><div class="sec-h">Was kann passieren?</div><div class="sec-b">' + esc(sec.happen.join("\n\n")) + '</div></div>';
+      if (sec.todo.length) h += '<div class="sec sec-todo"><div class="sec-h">Was ist zu tun?</div><div class="sec-b">' + esc(sec.todo.join("\n\n")) + '</div></div>';
+      if (sec.why.length) {
+        h += '<details class="why"><summary>Warum diese Warnung?</summary>';
+        sec.why.forEach(function (w) {
+          var hd = w.head === "MECHANISMUS" ? "Wie es dazu kommt (Mechanismus)" : prettyHead(w.head);
+          h += '<div class="why-p"><b>' + esc(hd) + ':</b> ' + esc(w.body) + '</div>';
+        });
+        h += '</details>';
+      }
+    }
     if (o.sys) h += '<div class="sys">Betroffene Systeme: ' + esc(o.sys) + '</div>';
     if (o.rec) h += '<div class="rec"><b>Empfehlung:</b> ' + esc(o.rec) + '</div>';
     h += '</div>';
@@ -909,10 +1035,44 @@
     var worstSev = null;
     r.interactions.concat(r.complex, r.risks).forEach(function (x) { if (!worstSev || x.sev.rank > worstSev.rank) worstSev = x.sev; });
 
+    // Vergleich mit der letzten Prüfung: Schlüssel je Karte (Art|Titel|Medikament).
+    // Nur sinnvoll, wenn sich die Auswahl mit der letzten überschneidet.
+    var items = [];
+    dups.forEach(function (d) { items.push({ k: "d|" + d.title + "|" + (d.names || []).join(","), t: d.title }); });
+    r.interactions.forEach(function (it) { items.push({ k: "i|" + it.title + "|" + it.drug1 + "|" + it.drug2, t: it.title + " (" + it.drug1 + " + " + it.drug2 + ")" }); });
+    r.complex.forEach(function (c) { items.push({ k: "c|" + c.title, t: c.title }); });
+    r.risks.forEach(function (rk) { items.push({ k: "r|" + rk.title + "|" + rk.medName, t: rk.title + " (" + rk.medName + ")" }); });
+    var last = lsGet(LS_LAST, null), prevKeys = null;
+    if (last && last.keys && last.ids && last.ids.some(function (id) { return selected.indexOf(id) !== -1; })) {
+      prevKeys = {}; last.keys.forEach(function (x) { prevKeys[x.k] = x.t; });
+    }
+    var nowKeys = {}; items.forEach(function (x) { nowKeys[x.k] = 1; });
+    var isNew = function (k) { return !!prevKeys && !(k in prevKeys); };
+    var gone = prevKeys ? Object.keys(prevKeys).filter(function (k) { return !nowKeys[k]; }).map(function (k) { return prevKeys[k]; }) : [];
+    lsSet(LS_LAST, { ids: selected.slice(), keys: items.slice(0, 300), at: Date.now() });
+    var ki = 0;
+    function nextKey() { return items[ki++].k; }
+
+    // Profil leer? Zeigen, welche Profil-Hinweise es zu dieser Auswahl gäbe
+    // (nur Anzahl + Kategorie-Namen aus der DB, keine Inhalte).
+    var profHint = "";
+    if (!profile.length) {
+      var allR = MS.analyze(selected, MS.RISK_CATEGORIES.map(function (c) { return c.key; })).risks;
+      if (allR.length) {
+        var cats = [];
+        allR.forEach(function (x) { if (x.categoryLabel && cats.indexOf(x.categoryLabel) === -1) cats.push(x.categoryLabel); });
+        profHint = '<div class="prof-hint"><span>Zu Ihrer Auswahl gibt es <b>' + allR.length + (allR.length === 1 ? ' Hinweis' : ' Hinweise') +
+          '</b> für bestimmte Personengruppen' + (cats.length ? ' (' + esc(cats.slice(0, 5).join(", ")) + (cats.length > 5 ? ' …' : '') + ')' : '') +
+          '. Geben Sie im Profil an, was auf Sie zutrifft.</span><button class="btn ghost small" id="toProfileBtn" type="button">Zum Profil</button></div>';
+      }
+    }
+
     var h = '<div class="card">';
     h += '<div class="res-head">'
       + '<h2 id="resHeading" tabindex="-1">Ergebnis</h2>'
       + '<div class="res-actions">'
+      + '<button class="btn ghost small" id="plainBtn" type="button" aria-pressed="' + (plainOn() ? 'true' : 'false') + '">Einfache Ansicht</button>'
+      + (window.speechSynthesis ? '<button class="btn ghost small" id="speakBtn" type="button">Vorlesen</button>' : '')
       + '<button class="btn ghost small" id="shareBtn" type="button">' + svgIcon("share") + 'Für Arzt/Apotheke</button>'
       + '<button class="btn ghost small" id="pdfBtn" type="button">' + svgIcon("download") + 'PDF-Bericht</button>'
       + '</div></div>';
@@ -930,6 +1090,10 @@
       stat(iN, "Wechselwirkungen") +
       stat(cN, "Mehrfach") +
       stat(rN, "Risiken") + '</div>';
+    if (gone.length) {
+      h += '<div class="gone-note"><b>Seit der letzten Prüfung entfallen:</b> ' + esc(gone.slice(0, 6).join("; ")) + (gone.length > 6 ? ' … (+' + (gone.length - 6) + ')' : '') + '</div>';
+    }
+    h += profHint;
 
     if (iN + cN + rN + dN === 0) {
       h += '<div class="ok-note" style="margin-top:12px"><svg class="ico ico-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>In der hinterlegten Datenbank wurden keine Wechselwirkungen, Risiken oder Doppelungen zu dieser Kombination gefunden. Das ist <u>keine</u> Garantie der Unbedenklichkeit – besprechen Sie Ihre Medikation mit Arzt/Apotheke.</span></div>';
@@ -945,7 +1109,8 @@
       h += '<p class="small muted" style="margin:-2px 0 10px">Struktureller Hinweis aus den Stammdaten – gleicher Wirkstoff bzw. gleiche Wirkstoffgruppe. Keine klinische Bewertung; ob eine Doppelung gewollt ist, klären Sie bitte mit Arzt oder Apotheke.</p>';
       dups.forEach(function (d) {
         var tags = (d.names || []).map(function (nm) { return '<span class="medtag">' + esc(nm) + '</span>'; }).join("");
-        h += card(d.sev, d.title, { medtags: tags, desc: d.description });
+        var k = nextKey();
+        h += card(d.sev, d.title, { medtags: tags, desc: d.description, glyph: "=", cls: d.type === "class" ? "sevinfo" : null, key: k, isNew: isNew(k) });
       });
       h += '</div>';
     }
@@ -953,9 +1118,10 @@
     if (iN) {
       h += '<div class="card"><h2>Wechselwirkungen <span class="n">' + iN + '</span></h2>';
       r.interactions.forEach(function (it) {
+        var k = nextKey();
         h += card(it.sev, it.title, {
           pair: esc(it.drug1) + '<span class="arrow">+</span>' + esc(it.drug2),
-          desc: it.description
+          desc: it.description, key: k, isNew: isNew(k)
         });
       });
       h += '</div>';
@@ -964,16 +1130,18 @@
       h += '<div class="card"><h2>Mehrfach-Wechselwirkungen <span class="n">' + cN + '</span></h2>';
       r.complex.forEach(function (c) {
         var tags = splitNames(c.drugNames).map(function (nm) { return '<span class="medtag">' + esc(nm) + '</span>'; }).join("");
-        h += card(c.sev, c.title, { medtags: tags, desc: c.description, sys: c.affectedSystems, rec: c.recommendation });
+        var k = nextKey();
+        h += card(c.sev, c.title, { medtags: tags, desc: c.description, sys: c.affectedSystems, rec: c.recommendation, key: k, isNew: isNew(k) });
       });
       h += '</div>';
     }
     if (rN) {
       h += '<div class="card"><h2>Individuelle Patientenrisiken <span class="n">' + rN + '</span></h2>';
       r.risks.forEach(function (rk) {
-        var pair = '<b>' + esc(rk.medName) + '</b>' + (rk.categoryLabel ? ' <span class="arrow">·</span>' + esc(rk.categoryLabel) : "");
-        var desc = rk.riskCondition ? (rk.riskCondition + " – " + (rk.description || "")) : rk.description;
-        h += card(rk.sev, rk.title, { pair: pair, desc: desc, rec: rk.recommendation });
+        var pair = '<b>' + esc(rk.medName) + '</b>' + (rk.categoryLabel ? ' <span class="arrow">·</span>' + esc(rk.categoryLabel) : "") +
+          (rk.riskCondition ? ' <span class="arrow">·</span>' + esc(rk.riskCondition) : "");
+        var k = nextKey();
+        h += card(rk.sev, rk.title, { pair: pair, desc: rk.description, rec: rk.recommendation, key: k, isNew: isNew(k) });
       });
       h += '</div>';
     }
@@ -999,7 +1167,61 @@
       if (!canShare) sh.hidden = true;
       else sh.onclick = function () { shareReport(r); };
     }
+    var tp = el("toProfileBtn");
+    if (tp) tp.onclick = function () {
+      var pc = el("profileCard");
+      if (pc) { pc.scrollIntoView({ behavior: "smooth", block: "start" }); var f = pc.querySelector("button, input"); if (f) setTimeout(function () { try { f.focus({ preventScroll: true }); } catch (e) {} }, 400); }
+    };
+    var pb = el("plainBtn");
+    if (pb) pb.onclick = function () {
+      var on = !plainOn(); lsSet(LS_PLAIN, on); applyPlain();
+      pb.setAttribute("aria-pressed", on ? "true" : "false");
+    };
+    var sp = el("speakBtn");
+    if (sp) sp.onclick = function () { toggleSpeak(sp); };
+    stopSpeak();
     ensureFDA();
+  }
+  // ---- Einfache Ansicht (größere Schrift, ohne Hintergrund-Details) ---------
+  function plainOn() { return !!lsGet(LS_PLAIN, false); }
+  function applyPlain() { document.body.classList.toggle("plain", plainOn()); }
+  // ---- Vorlesen (Web Speech API, lokal im Browser) --------------------------
+  // Liest Überschrift, Einstufung und die Abschnitte „Was kann passieren?" /
+  // „Was ist zu tun?" – ausschließlich der angezeigte DB-Text.
+  var speaking = false;
+  function stopSpeak() {
+    speaking = false;
+    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+    var b = el("speakBtn"); if (b) b.textContent = "Vorlesen";
+  }
+  function toggleSpeak(btn) {
+    if (speaking) { stopSpeak(); return; }
+    var root = el("results"); if (!root) return;
+    var parts = [];
+    var v = root.querySelector(".verdict .vtx b"); if (v) parts.push(v.textContent);
+    var ok = root.querySelector(".ok-note span"); if (ok) parts.push(ok.textContent);
+    var cards = root.querySelectorAll(".res");
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i], t = c.querySelector(".ttl"), lb = c.querySelector(".sevmark-lb"), pr = c.querySelector(".pair");
+      var txt = (t ? t.textContent.replace(/^Neu/, "") : "") + (lb ? ". " + lb.textContent : "") + (pr ? ". " + pr.textContent.replace(/·/g, ",") : "") + ".";
+      var lead = c.querySelector(".desc"); if (lead) txt += " " + lead.textContent;
+      var secs = c.querySelectorAll(".sec");
+      for (var j = 0; j < secs.length; j++) txt += " " + secs[j].querySelector(".sec-h").textContent + " " + secs[j].querySelector(".sec-b").textContent;
+      var rec = c.querySelector(".rec"); if (rec) txt += " " + rec.textContent;
+      parts.push(txt);
+    }
+    if (!parts.length) return;
+    var synth = window.speechSynthesis;
+    synth.cancel();
+    speaking = true; btn.textContent = "Stopp";
+    var voices = synth.getVoices ? synth.getVoices() : [];
+    var de = voices.filter(function (x) { return /^de/i.test(x.lang); })[0];
+    parts.forEach(function (p, idx) {
+      var u = new SpeechSynthesisUtterance(p);
+      u.lang = "de-DE"; if (de) u.voice = de; u.rate = 0.95;
+      if (idx === parts.length - 1) u.onend = u.onerror = function () { if (speaking) stopSpeak(); };
+      synth.speak(u);
+    });
   }
   function stat(n, label) { return '<div class="stat"><b data-to="' + (n || 0) + '">' + n + '</b><span>' + esc(label) + '</span></div>'; }
   // Zahlen im Ergebnis kurz hochzählen (rein optisch; setzt bei reduzierter Bewegung sofort den Endwert).
@@ -1328,11 +1550,20 @@
     window.addEventListener("pagehide", stopScan);
 
     el("analyzeBtn").addEventListener("click", analyze);
+    // Beispiel für Erstnutzer: zwei häufige Schmerzmittel (Treffer kommen aus der DB-Suche).
+    var exb = el("exampleBtn");
+    if (exb) exb.addEventListener("click", function () {
+      var ids = [];
+      ["Aspirin", "Ibuprofen"].forEach(function (n) { var hit = MS.search(n, 1)[0]; if (hit) ids = ids.concat(hit.ids); });
+      if (!ids.length) { toast("Beispiel nicht gefunden."); return; }
+      addByIds(ids); analyze();
+    });
   }
 
   // ---- Start ----------------------------------------------------------------
   function boot() {
     if (!MS) { toast("Fehler: Engine nicht geladen."); return; }
+    applyPlain();
     profile = lsGet(LS_PROF, []) || [];
     pznMap = lsGet(LS_PZN, {}) || {};
     plans = lsGet(LS_PLANS, []) || [];
@@ -1347,7 +1578,8 @@
       lsSet(LS_SEL, selected);
       renderChips();
       renderPlans(); scheduleAllReminders();
-      btn.disabled = false; btn.textContent = "Wechselwirkungen prüfen";
+      btn.disabled = false; updateAnalyzeBtn();
+      var ex = el("exampleBox"); if (ex) ex.hidden = !!selected.length;
       setTab("manual");
     }).catch(function (err) {
       btn.textContent = "Datenbank nicht verfügbar";
