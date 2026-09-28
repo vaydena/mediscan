@@ -1025,11 +1025,18 @@
   }
 
   // ---- PDF-Bericht (jsPDF, WinAnsi-sicher) ----------------------------------
+  // Zeichen außerhalb Latin-1 vor dem Abschneiden umschreiben, statt sie still zu
+  // verlieren: sonst wurde aus „β1-Blocker" „1-Blocker", aus „μ-Opioid" „-Opioid"
+  // und Gedankenstriche/Anführungszeichen/Aufzählungspunkte fehlten im PDF.
+  var PDF_MAP = { "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "κ": "kappa", "ω": "omega",
+                  "μ": "\u00B5", "–": "-", "—": "-", "„": '"', "“": '"', "”": '"', "‚": "'", "‘": "'", "’": "'",
+                  "…": "...", "•": "-" };
   function pdfSafe(s) {
     return String(s == null ? "" : s)
       .replace(/≥/g, ">=").replace(/≤/g, "<=")
       .replace(/[→↔⟷⟶⇄]/g, "->")
       .replace(/[⚠⬇]/g, "").replace(/ /g, " ")
+      .replace(/[αβγδκωμ–—„“”‚‘’…•]/g, function (c) { return PDF_MAP[c]; })
       .replace(/[^\x00-\xFF]/g, "");
   }
   var SEVRGB = { 0: [117, 117, 117], 1: [56, 142, 60], 2: [245, 124, 0], 3: [229, 57, 53], 4: [183, 28, 28] };
@@ -1043,7 +1050,7 @@
 
     function foot() {
       doc.setFontSize(7.5); doc.setTextColor(150);
-      doc.text("MediScan – Informationswerkzeug, kein Ersatz für ärztliche Beratung.", M, PH - 24);
+      doc.text(pdfSafe("MediScan – Informationswerkzeug, kein Ersatz für ärztliche Beratung."), M, PH - 24);
       doc.text("Seite " + page, PW - M, PH - 24, { align: "right" });
     }
     function newPage() { foot(); doc.addPage(); page++; y = M; }
@@ -1137,8 +1144,8 @@
       if (fdaRows.length) {
         ensure(30);
         doc.setDrawColor(219, 232, 230); doc.line(M, y, M + CW, y); y += 12;
-        line("Ergaenzend: US-FDA-Fachinformation (" + fdaRows.length + ")", 13, "bold", [0, 77, 64], 2);
-        line("Oeffentliche Original-Angaben der US-FDA, englischsprachig und unveraendert. Von MediScan nicht bewertet oder in Schweregrade uebersetzt; kann von deutschen Fachinfos abweichen.", 8.5, "italic", [110, 110, 110], 4);
+        line("Ergänzend: US-FDA-Fachinformation (" + fdaRows.length + ")", 13, "bold", [0, 77, 64], 2);
+        line("Öffentliche Original-Angaben der US-FDA, englischsprachig und unverändert. Von MediScan nicht bewertet oder in Schweregrade übersetzt; kann von deutschen Fachinfos abweichen.", 8.5, "italic", [110, 110, 110], 4);
         fdaRows.forEach(function (row) {
           ensure(20);
           line(row.name, 10.5, "bold", [0, 90, 80]);
