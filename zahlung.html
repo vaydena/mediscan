@@ -334,6 +334,7 @@
       .then(function(inv){
         if(!inv || !inv.found){ gate("Rechnung nicht gefunden","Der Link ist ungültig oder die Bestellung wurde storniert."); return; }
         hide(byId("loading")); show(byId("main"));
+        if(inv.status === "cancelled"){ gate("Bestellung storniert","Diese Bestellung "+(inv.number||"")+" wurde storniert. Bitte überweisen Sie keinen Betrag. Bei Fragen: kontakt@vaydena.de"); return; }
         if(inv.status === "paid"){ renderPaid(inv); return; }
         renderOpen(inv);
       })

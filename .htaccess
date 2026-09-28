@@ -3,6 +3,14 @@ AddType application/manifest+json .webmanifest
 AddType application/javascript .js
 AddType application/json .json
 AddDefaultCharset UTF-8
+
+# HTTP -> HTTPS (Kamera, Service Worker und Krypto-API funktionieren nur ueber HTTPS)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
 <IfModule mod_headers.c>
   # Reihenfolge wichtig: bei mehreren Treffern gewinnt die letzte Regel.
   <FilesMatch "\.(css|js|png|svg|woff2?)$">
@@ -21,4 +29,10 @@ AddDefaultCharset UTF-8
   </FilesMatch>
   Header set X-Content-Type-Options "nosniff"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+  Header set X-Frame-Options "DENY"
+  Header set Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=()"
+  # Bewusst schlanke CSP: verhindert Einbetten (Clickjacking), fremde <base>/Plugins und
+  # Formular-Umleitungen, ohne die Texterkennung (WASM/Worker vom CDN) zu brechen.
+  Header set Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
 </IfModule>

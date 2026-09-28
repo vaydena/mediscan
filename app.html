@@ -309,6 +309,15 @@ body.ms-locked{overflow:hidden}
     </li>
   </ol>
 
+  <!-- Person (mehrere Personen auf einem Gerät, z. B. für Angehörige) -->
+  <div class="personbar" id="personBar">
+    <label for="personSel" class="personbar-l"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Person</label>
+    <select id="personSel" class="personbar-s"></select>
+    <button type="button" class="btn ghost small" id="personAdd" aria-label="Person hinzufügen">+ Person</button>
+    <button type="button" class="btn ghost small" id="personRen">Umbenennen</button>
+    <button type="button" class="btn ghost small danger" id="personDel" hidden>Entfernen</button>
+  </div>
+
   <!-- Eingabe -->
   <section class="card">
     <h2><span class="step" aria-hidden="true">1</span>Medikamente erfassen</h2>
@@ -322,6 +331,7 @@ body.ms-locked{overflow:hidden}
         <div class="ac" id="ac" hidden></div>
       </div>
       <p class="small muted" style="margin:8px 2px 0">Tippen Sie einen Namen oder Wirkstoff – auch Handelsnamen wie „Beloc" oder „Godamed".</p>
+      <div id="exampleBox" class="example-box" hidden><span class="small muted">Noch nichts ausgewählt?</span> <button id="exampleBtn" class="btn ghost small" type="button">Beispiel ansehen: Aspirin + Ibuprofen</button></div>
     </div>
 
     <div class="hr" style="margin:18px 0 16px"></div>
@@ -386,15 +396,8 @@ body.ms-locked{overflow:hidden}
     </div>
   </section>
 
-  <!-- Gespeicherte Pläne & Einnahme-Erinnerungen (gerätelokal) -->
-  <section class="card" id="plansCard">
-    <h2>Meine Pläne <span class="n" id="planN">0</span></h2>
-    <p class="small muted" style="margin:-4px 0 12px">Gespeicherte Medikamentenlisten – nur auf diesem Gerät. Für Einnahme-Erinnerungen exportieren Sie einen Kalender-Termin (<b>.ics</b>, zuverlässig über Ihren Kalender) oder aktivieren die In-App-Erinnerung.</p>
-    <div id="planList"></div>
-  </section>
-
   <!-- Patientenprofil -->
-  <section class="card">
+  <section class="card" id="profileCard">
     <h2><span class="step" aria-hidden="true">2</span>Patientenprofil <span class="n">optional</span></h2>
     <p class="small muted" style="margin:-4px 0 12px">Aktivieren Sie zutreffende Punkte, um zusätzlich auf besondere Risiken zu prüfen.</p>
     <div class="toggles" id="toggles"></div>
@@ -404,6 +407,24 @@ body.ms-locked{overflow:hidden}
 
   <!-- Ergebnisse -->
   <section id="results" hidden></section>
+
+  <!-- Gespeicherte Pläne & Einnahme-Erinnerungen (gerätelokal) -->
+  <section class="card" id="plansCard">
+    <h2>Meine Pläne <span class="n" id="planN">0</span></h2>
+    <p class="small muted" style="margin:-4px 0 12px">Gespeicherte Medikamentenlisten – nur auf diesem Gerät. Für Einnahme-Erinnerungen exportieren Sie einen Kalender-Termin (<b>.ics</b>, zuverlässig über Ihren Kalender) oder aktivieren die In-App-Erinnerung.</p>
+    <div id="planList"></div>
+  </section>
+
+  <!-- Verschlüsselte Sicherung (gerätelokal, Passwort verlässt das Gerät nie) -->
+  <section class="card" id="backupCard">
+    <h2>Sicherung</h2>
+    <p class="small muted" style="margin:-4px 0 12px">Alle Personen, Pläne und Dosierungen als <b>verschlüsselte Datei</b> sichern – z. B. vor einem Handywechsel. Ohne Ihr Passwort ist die Datei nicht lesbar.</p>
+    <div class="selactions">
+      <button type="button" class="btn ghost small" id="backupExport"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Sicherung erstellen</button>
+      <button type="button" class="btn ghost small" id="backupImport">Sicherung einspielen</button>
+      <input type="file" id="backupFile" accept=".msbak,application/json" hidden>
+    </div>
+  </section>
 </main>
 
 <script src="assets/jspdf.umd.min.js"></script>

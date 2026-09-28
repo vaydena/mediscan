@@ -307,6 +307,12 @@ function ok(name, cond, extra) {
   var pSeven = MS.pzn.parse("PZN 1234562");          // 7-stellige Schreibweise -> auf 8 normalisiert
   ok("PZN-Parse: 7-stellig -> 01234562", pSeven && pSeven.pzn === "01234562", JSON.stringify(pSeven));
   ok("PZN-Parse: Text ohne Nummer => null", MS.pzn.parse("kein code hier") === null);
+  ok("PZN-Parse: keine PZN aus langer Nummer (EAN-13) herausgeschnitten",
+    MS.pzn.parse("EAN 4006381333931") === null, JSON.stringify(MS.pzn.parse("EAN 4006381333931")));
+  ok("PZN-Parse: GTIN nicht über Ziffernfolgen hinweg zusammengesetzt",
+    MS.pzn.parse("Ch.-B. 4150 Verw. 03110083x") === null || MS.pzn.parse("Ch.-B. 4150 Verw. 03110083x").source !== "gtin");
+  var pPpn = MS.pzn.parse("[)>06 9N110311008376 1TABC");
+  ok("PZN-Parse: IFA-PPN (9N11…)", pPpn && pPpn.pzn === "03110083" && pPpn.source === "ppn", JSON.stringify(pPpn));
 
   // --- Bundeseinheitlicher Medikationsplan (BMP / Data-Matrix) --------------
   // (2026-09-15, gemeldeter Fehler: „App scannt den Plan, zeigt aber keine

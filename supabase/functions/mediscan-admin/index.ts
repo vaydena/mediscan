@@ -31,6 +31,33 @@ function safeEqual(a: string, b: string) {
   for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return out === 0;
 }
+// ---- Rate-Limit (per IP, festes Zeitfenster) ------------------------------
+// Speichert nur den SHA-256-Hash der IP (keine Roh-IP/PII), Zeilen sind kurzlebig.
+// Faellt bei DB-Fehlern bewusst OFFEN (true), damit niemand ausgesperrt wird.
+function clientIp(req: Request): string {
+  const xff = req.headers.get("x-forwarded-for") || "";
+  const first = xff.split(",")[0].trim();
+  return first || (req.headers.get("cf-connecting-ip") || "").trim() || "unknown";
+}
+async function rateOk(bucket: string, ip: string, limit: number, windowSecs: number): Promise<boolean> {
+  try {
+    const iph = (await sha256hex(ip)).slice(0, 40);
+    const rows = await sql`
+      insert into mediscan.rate_hits (bucket, iphash, reset_at, hits)
+      values (${bucket}, ${iph}, now() + make_interval(secs => ${windowSecs}), 1)
+      on conflict (bucket, iphash) do update set
+        hits = case when mediscan.rate_hits.reset_at < now() then 1 else mediscan.rate_hits.hits + 1 end,
+        reset_at = case when mediscan.rate_hits.reset_at < now() then now() + make_interval(secs => ${windowSecs}) else mediscan.rate_hits.reset_at end
+      returning hits`;
+    if (Math.random() < 0.02) {
+      try { await sql`delete from mediscan.rate_hits where reset_at < now() - interval '1 day'`; } catch (_e) { /* egal */ }
+    }
+    return Number(rows[0].hits) <= limit;
+  } catch (_e) {
+    return true; // fail-open: Limiter darf niemanden aussperren
+  }
+}
+
 function esc(s: unknown) { return String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string)); }
 
 function withTimeout<T>(p: Promise<T>, ms: number) {
@@ -100,6 +127,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
+  // Defense-in-depth gegen Brute-Force des Betreiber-Schluessels: max. 120 Anfragen / 5 min.
+  if (!(await rateOk("admin", clientIp(req), 120, 300))) return json({ error: "rate_limited" }, 429);
+
   const key = req.headers.get("x-admin-key") ?? "";
   if (!key) return json({ error: "unauthorized" }, 401);
   let hash: string;
@@ -144,10 +174,14 @@ Deno.serve(async (req: Request) => {
 
     if (action === "create") {
       const name = String(body?.buyer_name ?? "").trim();
-      if (name.length < 2) return json({ error: "bad_name" }, 400);
-      const email = (typeof body?.buyer_email === "string" && body.buyer_email.trim() !== "") ? body.buyer_email.trim().toLowerCase() : null;
+      if (name.length < 2 || name.length > 120) return json({ error: "bad_name" }, 400);
+      const email = (typeof body?.buyer_email === "string" && body.buyer_email.trim() !== "") ? body.buyer_email.trim().toLowerCase().slice(0, 160) : null;
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "bad_email" }, 400);
       const notes = String(body?.notes ?? "").trim().slice(0, 500) || "Manuell angelegt";
-      const bill = (body?.billing && typeof body.billing === "object" && !Array.isArray(body.billing)) ? body.billing : {};
+      const rawBill = (body?.billing && typeof body.billing === "object" && !Array.isArray(body.billing)) ? body.billing as Record<string, unknown> : {};
+      // Nur bekannte Felder als kurze Strings uebernehmen.
+      const bs = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+      const bill = { recipient: bs(rawBill.recipient, 160) || name, street: bs(rawBill.street, 160), zip: bs(rawBill.zip, 20), city: bs(rawBill.city, 120), email: email || "" };
       const seq = await sql`select nextval('mediscan.order_seq') as v`;
       const order_ref = "MS-" + new Date().getFullYear() + "-" + String(seq[0].v).padStart(4, "0");
       const rows = await sql`insert into mediscan.licenses
@@ -176,14 +210,21 @@ Deno.serve(async (req: Request) => {
       if (pre.length === 0) return json({ error: "not_found" }, 404);
       const lic = pre[0];
       if (action === "activate" && lic.status === "revoked") return json({ error: "is_revoked" }, 409);
+      // Freischalten ohne vermerkten Zahlungseingang nur mit ausdruecklicher Bestaetigung.
+      if (action === "activate" && lic.status === "pending" && body?.confirm_unpaid !== true) {
+        return json({ error: "unpaid_confirm_required" }, 409);
+      }
       if (action === "resend_code" && !lic.token) return json({ error: "no_code_yet" }, 409);
+      // Erneut senden darf eine gesperrte Lizenz NICHT still reaktivieren (Update unten setzt status=active).
+      if (action === "resend_code" && lic.status === "revoked") return json({ error: "is_revoked" }, 409);
 
       let row: any = null;
       if (lic.token) {
         const r = await sql`update mediscan.licenses
             set status = 'active', activated_at = coalesce(activated_at, now()), paid_at = coalesce(paid_at, now()), revoked_at = null
-            where id = ${id}
+            where id = ${id} and status <> 'revoked'
             returning id, order_ref, token, status, buyer_name, buyer_email, activated_at`;
+        if (r.length === 0) return json({ error: "is_revoked" }, 409);
         row = r[0];
       } else {
         let ok = false;
@@ -192,9 +233,16 @@ Deno.serve(async (req: Request) => {
           try {
             const r = await sql`update mediscan.licenses
                 set token = ${cand}, status = 'active', activated_at = coalesce(activated_at, now()), paid_at = coalesce(paid_at, now())
-                where id = ${id}
+                where id = ${id} and token is null and status <> 'revoked'
                 returning id, order_ref, token, status, buyer_name, buyer_email, activated_at`;
-            row = r[0]; ok = true;
+            if (r.length === 0) {
+              // Parallel schon ein Code vergeben (Doppelklick) -> diesen verwenden, keinen zweiten erzeugen.
+              const again = await sql`select id, order_ref, token, status, buyer_name, buyer_email, activated_at
+                                        from mediscan.licenses where id = ${id} and token is not null and status = 'active' limit 1`;
+              if (again.length === 0) return json({ error: "not_found_or_wrong_status" }, 409);
+              row = again[0];
+            } else row = r[0];
+            ok = true;
           } catch (_e) { /* unique-violation auf token -> neuen Code versuchen */ }
         }
         if (!ok) return json({ error: "code_gen_failed" }, 500);

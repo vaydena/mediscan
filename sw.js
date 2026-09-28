@@ -1,7 +1,7 @@
 /* MediScan – Service Worker (Offline-Shell + Referenzdatenbank).
  * Bei App-Änderungen VERSION erhöhen → alter Cache wird verworfen.
  */
-var VERSION = "ms-v1-2026-09-19-32";
+var VERSION = "ms-v1-2026-09-28-38";
 var CACHE = "mediscan-" + VERSION;
 /* Große, versionierte (unveränderliche) OCR-Abhängigkeiten (Tesseract-Kette)
  * getrennt & dauerhaft halten – NICHT bei jedem App-Update mit-verworfen, sonst
@@ -30,12 +30,27 @@ var SHELL = [
   "assets/icons/favicon-32.png"
 ];
 
+/* Ohne diese Dateien ist die App offline unbrauchbar. */
+var CRITICAL = [
+  "app.html",
+  "assets/mediscan.css",
+  "assets/ms-engine.js",
+  "assets/ms-app.js",
+  "assets/jspdf.umd.min.js",
+  "assets/data/mediscan-db.json"
+];
+
 self.addEventListener("install", function (e) {
   e.waitUntil(
     caches.open(CACHE).then(function (c) {
-      // Jede Datei einzeln – eine fehlende darf die Installation nicht komplett kippen.
+      // Kerndateien MÜSSEN vollständig im neuen Cache liegen – sonst schlägt die
+      // Installation fehl und der alte SW (samt altem Cache) bleibt aktiv. Früher
+      // wurde jeder Fehler verschluckt; ein abgebrochener DB-Download beim Update
+      // hinterließ dann einen Cache OHNE Referenz-DB, und activate löschte den alten.
+      // Übrige Dateien (Rechtstexte, Icons, FDA-Ebene) bleiben best effort.
       return Promise.all(SHELL.map(function (u) {
-        return c.add(new Request(u, { cache: "reload" })).catch(function () {});
+        var p = c.add(new Request(u, { cache: "reload" }));
+        return CRITICAL.indexOf(u) !== -1 ? p : p.catch(function () {});
       }));
     }).then(function () { return self.skipWaiting(); })
   );
@@ -89,7 +104,9 @@ self.addEventListener("fetch", function (e) {
     e.respondWith(
       caches.match(req).then(function (r) {
         return r || fetch(req).then(function (resp) {
-          if (resp && (resp.ok || resp.type === "opaque")) {
+          // Nur versionierte Pfade (…@x.y.z/…) dauerhaft cachen – so kann eine
+          // fehlerhafte opake Antwort nicht fuer eine "latest"-URL haengen bleiben.
+          if (resp && (resp.ok || (resp.type === "opaque" && url.pathname.indexOf("@") > 0))) {
             var cp = resp.clone();
             caches.open(OCR_CACHE).then(function (c) { c.put(req, cp); });
           }

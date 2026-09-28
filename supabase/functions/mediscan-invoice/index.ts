@@ -94,8 +94,11 @@ Deno.serve(async (req: Request) => {
     const amount = (l.price_cents ?? 9900) / 100;
     // Bezahlt, sobald ein Zahlungseingang vermerkt ist (paid/active/revoked haben paid_at).
     const isPaid = !!l.paid_at;
+    // Stornierte Bestellungen: keine Bankdaten/QR-Code mehr anzeigen.
+    const isCancelled = l.status === "revoked";
+    const isOpen = !isPaid && !isCancelled;
     const reference = String(l.order_ref || "MediScan").slice(0, 140);
-    const giro = isPaid ? null : buildGiro({ holder: BANK.holder, iban: BANK.iban, bic: BANK.bic, amount, reference });
+    const giro = !isOpen ? null : buildGiro({ holder: BANK.holder, iban: BANK.iban, bic: BANK.bic, amount, reference });
     const bill = (l.billing && typeof l.billing === "object") ? l.billing : {};
     const billing = {
       recipient: (bill.recipient && String(bill.recipient).trim()) ? String(bill.recipient) : (l.buyer_name || ""),
@@ -110,14 +113,14 @@ Deno.serve(async (req: Request) => {
       unit_count: 1,
       unit_price: amount,
       item: ITEM,
-      status: isPaid ? "paid" : "open",
+      status: isCancelled ? "cancelled" : (isPaid ? "paid" : "open"),
       paid_at: l.paid_at,
       paid_at_dmy: dmy(l.paid_at),
       issued: l.created_at,
       issued_dmy: dmy(l.created_at),
       buyer_name: l.buyer_name,
       reference,
-      bank: { holder: BANK.holder, iban: formatIban(BANK.iban), bic: BANK.bic },
+      bank: isOpen ? { holder: BANK.holder, iban: formatIban(BANK.iban), bic: BANK.bic } : null,
       giro,
       billing,
       issuer: ISSUER,

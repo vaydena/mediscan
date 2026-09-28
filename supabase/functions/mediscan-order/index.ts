@@ -11,6 +11,51 @@ const json = (b: unknown, s = 200) =>
 const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { prepare: false });
 const SITE = "https://mediscan.vaydena.de";
 const PRICE_CENTS = 9900;
+const MIN_FILL_MS = 3000;
+const GLOBAL_PER_HOUR = 60;
+const IP_PER_DAY = 10;
+const AGB_VERSION = "2026-09";
+const URL_RE = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|ru|cn|xyz|top|info|biz|io|de)\b\/?)/i;
+
+class MissingTable extends Error {}
+
+function clientIp(req: Request) {
+  const xff = req.headers.get("x-forwarded-for") || "";
+  return (xff.split(",")[0] || req.headers.get("x-real-ip") || "").trim();
+}
+// Nur ein gesalzener Hash der IP wird gespeichert (keine Klar-IP).
+async function hashIp(ip: string) {
+  if (!ip) return "";
+  const salt = Deno.env.get("IP_HASH_SALT") || Deno.env.get("SUPABASE_DB_URL") || "";
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + "|" + ip));
+  return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
+
+// ---- Rate-Limit (per IP, festes Zeitfenster) ------------------------------
+// Speichert nur den SHA-256-Hash der IP (keine Roh-IP/PII), Zeilen sind kurzlebig.
+// Faellt bei DB-Fehlern bewusst OFFEN (true), damit niemand ausgesperrt wird.
+async function sha256hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function rateOk(bucket: string, ip: string, limit: number, windowSecs: number): Promise<boolean> {
+  try {
+    const iph = (await sha256hex(ip)).slice(0, 40);
+    const rows = await sql`
+      insert into mediscan.rate_hits (bucket, iphash, reset_at, hits)
+      values (${bucket}, ${iph}, now() + make_interval(secs => ${windowSecs}), 1)
+      on conflict (bucket, iphash) do update set
+        hits = case when mediscan.rate_hits.reset_at < now() then 1 else mediscan.rate_hits.hits + 1 end,
+        reset_at = case when mediscan.rate_hits.reset_at < now() then now() + make_interval(secs => ${windowSecs}) else mediscan.rate_hits.reset_at end
+      returning hits`;
+    if (Math.random() < 0.02) {
+      try { await sql`delete from mediscan.rate_hits where reset_at < now() - interval '1 day'`; } catch (_e) { /* egal */ }
+    }
+    return Number(rows[0].hits) <= limit;
+  } catch (_e) {
+    return true; // fail-open: Limiter darf niemanden aussperren
+  }
+}
 
 function str(v: unknown, max?: number) { return (typeof v === "string" ? v : "").trim().slice(0, max || 500); }
 function isEmail(s: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s); }
@@ -51,37 +96,86 @@ Deno.serve(async (req: Request) => {
 
   // Honeypot: still bestaetigen, aber nichts anlegen.
   if (str(body?.hp, 100)) return json({ ok: true, spam: true });
+  // Mindest-Ausfuellzeit: Bots senden das Formular in Sekundenbruchteilen ab.
+  const elapsed = Number(body?.elapsed_ms);
+  if (Number.isFinite(elapsed) && elapsed >= 0 && elapsed < MIN_FILL_MS) return json({ error: "too_fast" }, 400);
 
   const buyer_name = str(body?.buyer_name, 120);
   if (buyer_name.length < 2) return json({ error: "bad_name" }, 400);
+  if (URL_RE.test(buyer_name)) return json({ error: "bad_input" }, 400);
   const buyer_email = str(body?.buyer_email, 160).toLowerCase();
   if (!isEmail(buyer_email)) return json({ error: "bad_email" }, 400);
   if (body?.consent !== true) return json({ error: "consent_required" }, 400);
+  if (body?.agb !== true) return json({ error: "agb_required" }, 400);
+  const waiver = body?.waiver === true;
 
   const bill_recipient = str(body?.billing_recipient, 160) || buyer_name;
   const bill_street = str(body?.billing_street, 160);
   const bill_zip = str(body?.billing_zip, 20);
   const bill_city = str(body?.billing_city, 120);
-  const billing = { recipient: bill_recipient, street: bill_street, zip: bill_zip, city: bill_city, email: buyer_email };
-
-  // Rate-Limit: max. 8 Bestellungen je E-Mail und Tag.
-  try {
-    const recent = await sql`select count(*)::int as c from mediscan.licenses
-                               where lower(buyer_email) = ${buyer_email} and created_at > now() - interval '1 day'`;
-    if (recent[0].c >= 8) return json({ error: "rate_limited" }, 429);
-  } catch (_e) { return json({ error: "server_error" }, 500); }
+  if ([bill_recipient, bill_street, bill_zip, bill_city].some((v) => URL_RE.test(v))) return json({ error: "bad_input" }, 400);
+  const at = new Date().toISOString();
+  const consents = { privacy: true, agb: true, waiver, at, agb_version: AGB_VERSION };
+  const billing = { recipient: bill_recipient, street: bill_street, zip: bill_zip, city: bill_city, email: buyer_email, consents };
+  const ip_hash = await hashIp(clientIp(req));
+  // Kurzfristiger Backstop je IP: max. 6 abgeschickte Bestellungen/Stunde.
+  if (!(await rateOk("order", clientIp(req) || "unknown", 6, 3600))) return json({ error: "rate_limited" }, 429);
 
   let order_ref = "";
   let access_token = "";
   try {
-    const seq = await sql`select nextval('mediscan.order_seq') as v`;
-    order_ref = "MS-" + new Date().getFullYear() + "-" + String(seq[0].v).padStart(4, "0");
-    const rows = await sql`insert into mediscan.licenses
-        (order_ref, status, buyer_name, buyer_email, billing, price_cents, notes)
-        values (${order_ref}, 'pending', ${buyer_name}, ${buyer_email}, ${billing}::jsonb, ${PRICE_CENTS}, 'Selbstbestellung')
-        returning access_token, order_ref`;
-    access_token = rows[0].access_token;
-    order_ref = rows[0].order_ref;
+    const res = await sql.begin(async (tx: any) => {
+      // Serialisiert parallele Bestellungen, damit die Zaehlungen unten nicht umgangen werden koennen.
+      await tx`select pg_advisory_xact_lock(hashtext('mediscan-order'))`;
+      const byMail = await tx`select count(*)::int as c from mediscan.licenses
+                                where lower(buyer_email) = ${buyer_email} and created_at > now() - interval '1 day'`;
+      if (byMail[0].c >= 8) return { limited: true };
+      const global = await tx`select count(*)::int as c from mediscan.licenses
+                                where created_at > now() - interval '1 hour'`;
+      if (global[0].c >= GLOBAL_PER_HOUR) return { limited: true };
+      if (ip_hash) {
+        try {
+          const byIp = await tx`select count(*)::int as c from mediscan.order_attempts
+                                  where ip_hash = ${ip_hash} and created_at > now() - interval '1 day'`;
+          if (byIp[0].c >= IP_PER_DAY) return { limited: true };
+          await tx`insert into mediscan.order_attempts (ip_hash) values (${ip_hash})`;
+          await tx`delete from mediscan.order_attempts where created_at < now() - interval '7 days'`;
+        } catch (e) {
+          // Tabelle noch nicht migriert: ohne IP-Limit weiter (Savepoint waere noetig -> neu werfen, wenn nicht 42P01).
+          if ((e as { code?: string })?.code !== "42P01") throw e;
+          throw new MissingTable();
+        }
+      }
+      const seq = await tx`select nextval('mediscan.order_seq') as v`;
+      const ref = "MS-" + new Date().getFullYear() + "-" + String(seq[0].v).padStart(4, "0");
+      const rows = await tx`insert into mediscan.licenses
+          (order_ref, status, buyer_name, buyer_email, billing, price_cents, notes)
+          values (${ref}, 'pending', ${buyer_name}, ${buyer_email}, ${billing}::jsonb, ${PRICE_CENTS},
+                  ${"Selbstbestellung" + (waiver ? " · Verzicht Widerruf erteilt" : " · kein Verzicht: Code erst nach Widerrufsfrist")})
+          returning access_token, order_ref`;
+      return { limited: false, row: rows[0] };
+    }).catch(async (e: unknown) => {
+      if (!(e instanceof MissingTable)) throw e;
+      // Fallback ohne IP-Tabelle (Migration noch nicht eingespielt).
+      console.log("order: mediscan.order_attempts fehlt – Migration einspielen");
+      return await sql.begin(async (tx: any) => {
+        await tx`select pg_advisory_xact_lock(hashtext('mediscan-order'))`;
+        const byMail = await tx`select count(*)::int as c from mediscan.licenses
+                                  where lower(buyer_email) = ${buyer_email} and created_at > now() - interval '1 day'`;
+        if (byMail[0].c >= 8) return { limited: true };
+        const seq = await tx`select nextval('mediscan.order_seq') as v`;
+        const ref = "MS-" + new Date().getFullYear() + "-" + String(seq[0].v).padStart(4, "0");
+        const rows = await tx`insert into mediscan.licenses
+            (order_ref, status, buyer_name, buyer_email, billing, price_cents, notes)
+            values (${ref}, 'pending', ${buyer_name}, ${buyer_email}, ${billing}::jsonb, ${PRICE_CENTS},
+                    ${"Selbstbestellung" + (waiver ? " · Verzicht Widerruf erteilt" : " · kein Verzicht: Code erst nach Widerrufsfrist")})
+            returning access_token, order_ref`;
+        return { limited: false, row: rows[0] };
+      });
+    });
+    if (res.limited) return json({ error: "rate_limited" }, 429);
+    access_token = res.row.access_token;
+    order_ref = res.row.order_ref;
   } catch (_e) { return json({ error: "server_error" }, 500); }
 
   const payLink = SITE + "/zahlung.html?r=" + access_token;
@@ -133,6 +227,7 @@ kontakt@vaydena.de`;
         "E-Mail: " + buyer_email,
         "Rechnung an: " + bill_recipient + (bill_street ? (", " + bill_street) : "") + (bill_zip || bill_city ? (", " + bill_zip + " " + bill_city) : ""),
         "Betrag: " + amount,
+        "Verzicht auf Widerrufsrecht: " + (waiver ? "JA – Code darf nach Zahlungseingang sofort versendet werden" : "NEIN – Code erst nach Ablauf der 14-tägigen Widerrufsfrist versenden"),
         "Zahlseite: " + payLink,
         "",
         "-> Nach Zahlungseingang im Betreiber-Bereich 'Bezahlt' markieren und 'Freischalten' (versendet den Bestätigungscode).",

@@ -547,6 +547,93 @@ footer .links{margin-bottom:10px}
 .verdict .vicon{animation:viconPop .42s cubic-bezier(.34,1.56,.64,1) both}
 .verdict.sev3 .vicon,.verdict.sev4 .vicon{animation:viconPop .42s cubic-bezier(.34,1.56,.64,1) both,viconPulse 2.2s 1s ease-in-out infinite}
 
+/* ---- Prüf-Button: leerer Zustand ---- */
+#analyzeBtn.idle{filter:saturate(.55);opacity:.82}
+
+/* ---- Toast mit Aktion (über dem angehefteten Prüf-Button) ---- */
+body.ms-app .toast{bottom:calc(88px + env(safe-area-inset-bottom,0px))}
+.toast{display:flex;align-items:center;gap:12px;justify-content:center}
+.toast-act{background:none;border:1.5px solid rgba(95,208,194,.6);color:#8ff0e2;font:inherit;font-weight:800;
+  padding:6px 12px;border-radius:10px;cursor:pointer;white-space:nowrap}
+.toast-act:hover,.toast-act:focus-visible{background:rgba(95,208,194,.16)}
+
+/* ---- Eigene Dialoge (statt prompt/confirm) ---- */
+.msdlg{border:1px solid var(--line);border-radius:18px;padding:0;background:var(--card);color:var(--ink);
+  width:min(92vw,420px);box-shadow:0 24px 60px -12px rgba(0,0,0,.45)}
+.msdlg::backdrop{background:rgba(6,30,27,.55);backdrop-filter:blur(2px)}
+.msdlg-f{padding:20px 20px 16px;margin:0}
+.msdlg-t{margin:0 0 6px;font-size:1.1rem;color:var(--petrol-d)}
+.msdlg-x{margin:0 0 12px;color:var(--muted);font-size:.92rem}
+.msdlg-in{width:100%;box-sizing:border-box;font:inherit;font-size:1rem;padding:11px 13px;border-radius:11px;
+  border:1.5px solid var(--line);background:var(--card);color:var(--ink);margin:4px 0 14px}
+.msdlg-in:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px rgba(44,199,182,.22)}
+.msdlg-b{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.btn.danger-solid{background:var(--sev3);color:#fff;border:0}
+.btn.danger-solid:hover{filter:brightness(1.07)}
+
+/* ---- Beispiel für Erstnutzer ---- */
+.example-box{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;margin:12px 2px 0}
+.example-box[hidden]{display:none}
+
+/* ---- Ergebnis: Abschnitte aus dem DB-Text ---- */
+.res .desc,.res .sec-b,.res .why-p{white-space:pre-line}
+.res .sec{margin-top:10px;padding:9px 12px;border-radius:10px;font-size:.92rem}
+.res .sec-h{font-weight:800;font-size:.8rem;letter-spacing:.03em;text-transform:uppercase;margin-bottom:3px}
+.res .sec-happen{background:var(--amber-soft);border-left:3px solid var(--amber)}
+.res .sec-happen .sec-h{color:var(--amber-ink)}
+.res .sec-todo{background:var(--soft);border-left:3px solid var(--cyan)}
+.res .sec-todo .sec-h{color:var(--petrol-d)}
+.res .why{margin-top:10px;font-size:.88rem}
+.res .why summary{cursor:pointer;color:var(--cyan-d);font-weight:700;padding:4px 0;list-style-position:inside}
+.res .why summary:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:6px}
+.res .why-p{margin:6px 0 0;color:var(--ink);opacity:.9}
+.res .why-p b{color:var(--petrol-d)}
+.newtag{display:inline-block;vertical-align:1px;margin-right:7px;background:var(--grad-accent,var(--cyan));color:#fff;
+  font-size:.66rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:6px}
+.gone-note{margin-top:12px;font-size:.86rem;padding:10px 13px;border-radius:11px;background:var(--soft);border:1px dashed var(--line);color:var(--muted)}
+.gone-note b{color:var(--ink)}
+.prof-hint{display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap;margin-top:12px;padding:11px 14px;border-radius:12px;
+  background:var(--soft);border:1px solid var(--line);font-size:.9rem}
+.prof-hint span{flex:1 1 220px}
+.res-actions .btn[aria-pressed="true"]{background:var(--soft-2);border-color:var(--cyan)}
+
+/* Doppelung „gleiche Wirkstoffgruppe": neutral, kein Schweregrad */
+.res.sevinfo{border-left-color:var(--petrol,#0f6e63)}
+.res.sevinfo .sevring-fg{stroke:var(--petrol,#0f6e63)} .res.sevinfo .sevring-gl{fill:var(--petrol-d)} .res.sevinfo .sevmark-lb{color:var(--petrol-d)}
+
+/* Banner-Symbol je Stufe (zusätzlich zur Farbe) */
+.verdict.sev3 .vicon::before{content:"!!"}
+.verdict.sev4 .vicon::before{content:"\00D7";font-size:1.35rem}
+
+/* ---- Einfache Ansicht: größer, ohne Hintergrund-Details ---- */
+body.plain .res .why,body.plain .res .sys,body.plain .fda-wrap{display:none}
+body.plain .res .ttl{font-size:1.15rem}
+body.plain .res .desc,body.plain .res .sec,body.plain .res .rec,body.plain .res .pair{font-size:1.06rem;line-height:1.55}
+body.plain .verdict .vtx b{font-size:1.15rem}
+
+@media (prefers-color-scheme: dark){
+  body.ms-app .msdlg-t,body.ms-app .res .why-p b,body.ms-app .res .sec-todo .sec-h{color:var(--mint)}
+  body.ms-app .res.sevinfo{border-left-color:var(--cyan)}
+  body.ms-app .res.sevinfo .sevring-fg{stroke:var(--cyan)}
+  body.ms-app .res.sevinfo .sevring-gl,body.ms-app .res.sevinfo .sevmark-lb{fill:var(--mint);color:var(--mint)}
+  body.ms-app .msdlg::backdrop{background:rgba(0,0,0,.6)}
+}
+
+/* ---- Personen, Dosierung, Sicherung ---- */
+.personbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 14px;padding:8px 12px;border:1px solid var(--line, #dfe5e4);border-radius:14px;background:var(--card, #fff)}
+.personbar-l{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:.92rem}
+.personbar-s{flex:1 1 120px;min-width:0;min-height:40px;padding:6px 10px;border-radius:10px;border:1px solid var(--line, #cfd8d6);background:transparent;color:inherit;font:inherit}
+.personbar .btn[hidden]{display:none}
+.dose-hd{margin:4px 0 8px}
+.dose-tbl{display:grid;gap:6px;margin:0 0 12px}
+.dose-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.2fr) repeat(4,minmax(34px,.45fr));gap:6px;align-items:center}
+.dose-head span{font-size:.75rem;font-weight:700;opacity:.7;text-align:center}
+.dose-head span:first-child,.dose-head span:nth-child(2){text-align:left}
+.dose-nm{font-size:.88rem;font-weight:600;overflow-wrap:anywhere}
+.dose-in{width:100%;min-height:36px;padding:4px 6px;border:1px solid var(--line, #cfd8d6);border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:.9rem}
+.dose-n{text-align:center}
+@media (max-width:420px){.dose-row{grid-template-columns:minmax(0,1fr) repeat(4,minmax(30px,.4fr))}.dose-row>span:nth-child(2){grid-column:1/-1;order:9}.dose-head>span:nth-child(2){display:none}}
+
 /* ---- Bewegung reduzieren ---- */
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s!important;transition-duration:.001s!important}

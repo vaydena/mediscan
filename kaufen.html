@@ -79,6 +79,8 @@
 
   .consent{display:flex;gap:11px;align-items:flex-start;margin-top:2px;font-size:.9rem;color:var(--ink)}
   .consent input{width:20px;height:20px;margin-top:1px;accent-color:var(--brand);flex:0 0 auto}
+  .consent+.consent{margin-top:12px}
+  .optnote{color:var(--muted);font-size:.84rem}
   .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 
   .submitrow{display:flex;flex-direction:column;gap:12px;align-items:stretch;margin-top:16px}
@@ -157,7 +159,15 @@
       <div class="card">
         <label class="consent">
           <input type="checkbox" id="consent" name="consent" required>
-          <span>Ich habe die <a href="index.html#datenschutz" target="_blank" rel="noopener">Datenschutzhinweise</a> gelesen und stimme der Verarbeitung meiner Angaben zur Abwicklung des Kaufs und zur Freischaltung zu. <span class="req">*</span></span>
+          <span>Ich habe die <a href="datenschutz.html" target="_blank" rel="noopener">Datenschutzhinweise</a> gelesen und stimme der Verarbeitung meiner Angaben zur Abwicklung des Kaufs und zur Freischaltung zu. <span class="req">*</span></span>
+        </label>
+        <label class="consent">
+          <input type="checkbox" id="agb" name="agb" required>
+          <span>Ich habe die <a href="agb.html" target="_blank" rel="noopener">Allgemeinen Geschäftsbedingungen</a> einschließlich der <a href="agb.html#widerruf" target="_blank" rel="noopener">Widerrufsbelehrung</a> gelesen und akzeptiere sie. <span class="req">*</span></span>
+        </label>
+        <label class="consent">
+          <input type="checkbox" id="waiver" name="waiver">
+          <span>Ich verlange ausdrücklich, dass Sie vor Ablauf der Widerrufsfrist mit der Freischaltung beginnen, und weiß, dass ich dadurch mein Widerrufsrecht verliere, sobald mir der Bestätigungscode zugegangen ist. <span class="optnote">(freiwillig – ohne diese Zustimmung senden wir den Code erst nach Ablauf der 14-tägigen Widerrufsfrist)</span></span>
         </label>
 
         <div class="hp" aria-hidden="true">
@@ -193,11 +203,15 @@
 
   var BTN_LABEL = "Kostenpflichtig bestellen &middot; 99&nbsp;€";
   var busy = false;
+  var T0 = Date.now();
   var ERR = {
     bad_name: "Bitte geben Sie Ihren Namen ein.",
     bad_email: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
     consent_required: "Bitte bestätigen Sie die Datenschutzhinweise.",
-    rate_limited: "Zu viele Bestellungen mit dieser E-Mail. Bitte versuchen Sie es später erneut.",
+    agb_required: "Bitte akzeptieren Sie die AGB und die Widerrufsbelehrung.",
+    too_fast: "Das ging etwas schnell – bitte prüfen Sie Ihre Angaben und senden Sie das Formular erneut.",
+    bad_input: "Bitte prüfen Sie Ihre Angaben (Links sind im Namen nicht erlaubt).",
+    rate_limited: "Zu viele Bestellungen in kurzer Zeit. Bitte versuchen Sie es später erneut.",
     server_error: "Es ist ein Serverfehler aufgetreten. Bitte versuchen Sie es erneut."
   };
 
@@ -211,6 +225,7 @@
     var buyer_email = val("buyer_email");
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyer_email)){ showErr(ERR.bad_email); $("buyer_email").focus(); return; }
     if(!$("consent").checked){ showErr(ERR.consent_required); return; }
+    if(!$("agb").checked){ showErr(ERR.agb_required); return; }
 
     var payload = {
       buyer_name: buyer_name,
@@ -220,6 +235,9 @@
       billing_zip: val("billing_zip"),
       billing_city: val("billing_city"),
       consent: true,
+      agb: true,
+      waiver: $("waiver").checked,
+      elapsed_ms: Date.now() - T0,
       hp: val("hp")
     };
 

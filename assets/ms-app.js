@@ -8,6 +8,7 @@
   var DB_URL = "assets/data/mediscan-db.json";
   var FDA_URL = "assets/data/mediscan-fda.json";   // separate, öffentliche FDA-Datenebene (lazy)
   var LS_SEL = "ms.sel", LS_PROF = "ms.profile", LS_PZN = "ms.pzn", LS_PLANS = "ms.plans";
+  var LS_LAST = "ms.last", LS_PLAIN = "ms.plain";
   var TESS_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   var ZXING_CDN = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
 
@@ -25,6 +26,9 @@
       calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
       bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
       share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/>',
+      file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
+      user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+      lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
       download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>'
     };
     return '<svg class="ico' + (extra ? " " + extra : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
@@ -44,13 +48,73 @@
   }
   function lsGet(k, def) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  // Mehrere Personen (z. B. „Ich", „Mutter") auf einem Gerät: Auswahl, Profil,
+  // Pläne und letzte Prüfung liegen je Person unter eigenem Schlüssel. Die erste
+  // Person nutzt die bisherigen Schlüssel ohne Suffix (bestehende Daten bleiben).
+  var LS_PERSONS = "ms.persons";
+  var persons = lsGet(LS_PERSONS, null);
+  if (!persons || !persons.list || !persons.list.length) persons = { list: [{ id: "p0", name: "Ich" }], cur: "p0" };
+  function K(base, pid) { pid = pid || persons.cur; return pid === "p0" ? base : base + "@" + pid; }
+  function curPerson() { for (var i = 0; i < persons.list.length; i++) if (persons.list[i].id === persons.cur) return persons.list[i]; return persons.list[0]; }
   var toastT = null;
-  function toast(msg) {
+  // toast(msg) – kurze Meldung. toast(msg, {label, onAction}) – mit Aktionsknopf
+  // (z. B. „Rückgängig"), bleibt dann länger (6 s) stehen.
+  function toast(msg, action) {
     var t = el("ms-toast");
     if (!t) { t = document.createElement("div"); t.id = "ms-toast"; t.className = "toast"; t.setAttribute("role", "status"); t.setAttribute("aria-live", "polite"); document.body.appendChild(t); }
-    t.textContent = msg; t.style.opacity = "1";
-    clearTimeout(toastT); toastT = setTimeout(function () { t.style.transition = "opacity .4s"; t.style.opacity = "0"; }, 2600);
+    t.innerHTML = "";
+    var span = document.createElement("span"); span.textContent = msg; t.appendChild(span);
+    if (action && action.label && typeof action.onAction === "function") {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "toast-act"; b.textContent = action.label;
+      b.onclick = function () { t.style.opacity = "0"; t.style.pointerEvents = "none"; clearTimeout(toastT); action.onAction(); };
+      t.appendChild(b);
+    }
+    t.style.transition = ""; t.style.opacity = "1"; t.style.pointerEvents = "";
+    clearTimeout(toastT); toastT = setTimeout(function () { t.style.transition = "opacity .4s"; t.style.opacity = "0"; t.style.pointerEvents = "none"; }, action ? 6000 : 2600);
   }
+
+  // Eigene, barrierearme Dialoge statt window.prompt/confirm (die auf Handys
+  // unschön aussehen und in installierten PWAs teils blockiert sind).
+  // Liefert ein Promise: ask → String|null, confirm → true|false.
+  function msDialog(opts) {
+    return new Promise(function (resolve) {
+      var d = document.createElement("dialog");
+      if (typeof d.showModal !== "function") {                 // sehr alte Browser → Fallback
+        if (opts.input != null) resolve(window.prompt(opts.title, opts.input));
+        else resolve(window.confirm(opts.title + (opts.text ? "\n\n" + opts.text : "")));
+        return;
+      }
+      d.className = "msdlg";
+      var h = '<form method="dialog" class="msdlg-f">' +
+        '<h3 class="msdlg-t">' + esc(opts.title) + '</h3>' +
+        (opts.text ? '<p class="msdlg-x">' + esc(opts.text) + '</p>' : '') +
+        (opts.input != null ? '<input type="' + (opts.password ? "password" : "text") + '" class="msdlg-in" maxlength="' + (opts.password ? 200 : 80) + '"' + (opts.password ? ' autocomplete="' + (opts.password === "new" ? "new-password" : "current-password") + '"' : '') + ' value="' + esc(opts.input) + '" aria-label="' + esc(opts.title) + '">' : '') +
+        '<div class="msdlg-b">' +
+        '<button type="button" class="btn ghost small" value="cancel">' + esc(opts.cancel || "Abbrechen") + '</button>' +
+        '<button type="submit" class="btn small ' + (opts.danger ? "danger-solid" : "cyan") + '" value="ok">' + esc(opts.ok || "OK") + '</button>' +
+        '</div></form>';
+      d.innerHTML = h;
+      document.body.appendChild(d);
+      var inp = d.querySelector(".msdlg-in"), done = false;
+      function finish(v) {
+        if (done) return; done = true;
+        try { d.close(); } catch (e) {}
+        setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 0);
+        resolve(v);
+      }
+      d.querySelector('button[value="cancel"]').onclick = function () { finish(opts.input != null ? null : false); };
+      d.querySelector("form").addEventListener("submit", function (e) {
+        e.preventDefault(); finish(opts.input != null ? (inp ? inp.value : "") : true);
+      });
+      d.addEventListener("cancel", function (e) { e.preventDefault(); finish(opts.input != null ? null : false); });
+      d.addEventListener("click", function (e) { if (e.target === d) finish(opts.input != null ? null : false); });
+      d.showModal();
+      if (inp) { inp.focus(); try { inp.select(); } catch (e) {} }
+    });
+  }
+  function askText(title, def, okLabel) { return msDialog({ title: title, input: def || "", ok: okLabel || "Speichern" }); }
+  function askConfirm(title, text, okLabel, danger) { return msDialog({ title: title, text: text, ok: okLabel || "OK", danger: !!danger }); }
 
   // ---- Zustand --------------------------------------------------------------
   var selected = [];          // Med-IDs (Zahlen)
@@ -77,7 +141,7 @@
       if (selected.indexOf(id) !== -1) { dup++; return; }
       selected.push(id); added++;
     });
-    if (added) { lsSet(LS_SEL, selected); renderChips(); maybeRerun(); }
+    if (added) { lsSet(K(LS_SEL), selected); renderChips(); maybeRerun(); }
     // Wartet eine erkannte PZN auf Zuordnung? -> gerätelokal mit dieser Wahl merken.
     if (pendingPZN && valid.length) {
       linkPZN(pendingPZN, valid);
@@ -100,7 +164,7 @@
       if (isNaN(id) || !MS.medById(id)) return;
       if (selected.indexOf(id) === -1) { selected.push(id); added++; }
     });
-    if (added) { lsSet(LS_SEL, selected); renderChips(); }
+    if (added) { lsSet(K(LS_SEL), selected); renderChips(); }
     return added;
   }
   // Nach einem Scan (Medikationsplan / OCR / bekannte PZN) die Wechselwirkungen
@@ -151,15 +215,30 @@
   function removeId(id) {
     id = parseInt(id, 10);
     selected = selected.filter(function (x) { return x !== id; });
-    lsSet(LS_SEL, selected); renderChips(); maybeRerun();
+    lsSet(K(LS_SEL), selected); renderChips(); maybeRerun();
   }
   function clearSel() {
-    selected = []; lsSet(LS_SEL, selected); renderChips();
+    var before = selected.slice(), wasShown = resultsShown;
+    selected = []; lsSet(K(LS_SEL), selected); renderChips();
+    pendingPZN = null; renderPending();
     resultsShown = false; el("results").hidden = true; el("results").innerHTML = "";
+    if (before.length) toast("Liste geleert (" + before.length + ").", { label: "Rückgängig", onAction: function () {
+      selected = before.filter(function (id) { return !!MS.medById(id); });
+      lsSet(K(LS_SEL), selected); renderChips();
+      if (wasShown) analyze();
+    } });
+  }
+  // Prüf-Button zeigt die Anzahl der Medikamente und ist ohne Auswahl gedimmt.
+  function updateAnalyzeBtn() {
+    var b = el("analyzeBtn"); if (!b || !ready) return;
+    b.textContent = selected.length ? ("Wechselwirkungen prüfen (" + selected.length + ")") : "Wechselwirkungen prüfen";
+    b.classList.toggle("idle", !selected.length);
   }
   function renderChips() {
     var card = el("selCard"), chips = el("chips"), n = el("selN");
     n.textContent = selected.length;
+    updateAnalyzeBtn();
+    var ex = el("exampleBox"); if (ex) ex.hidden = !!selected.length || !ready;
     if (!selected.length) { card.hidden = true; chips.innerHTML = ""; return; }
     card.hidden = false;
     chips.innerHTML = selected.map(function (id) {
@@ -181,7 +260,7 @@
   // Die In-App-Erinnerung funktioniert nur, solange die App/der Tab offen ist
   // (kein Server, keine Hintergrund-Pushes – das wäre Phase 2/SaaS). Nichts
   // verlässt das Gerät.
-  function savePlans() { lsSet(LS_PLANS, plans); }
+  function savePlans() { lsSet(K(LS_PLANS), plans); }
   function planId() { return "p_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function findPlan(id) { for (var i = 0; i < plans.length; i++) if (plans[i].id === id) return plans[i]; return null; }
   function planMedIds(plan) {
@@ -194,33 +273,43 @@
     if (!selected.length) { toast("Bitte zuerst Medikamente hinzufügen."); return; }
     var def = MS.medById(selected[0]) ? MS.medById(selected[0]).name : "Mein Plan";
     if (selected.length > 1) def += " +" + (selected.length - 1);
-    var name = window.prompt("Name für diesen Plan:", def);
-    if (name === null) return;
-    name = (name || "").trim() || def;
-    plans.push({ id: planId(), name: name, created: Date.now(), medIds: selected.slice(), times: [], notify: false });
-    savePlans(); renderPlans();
-    toast("Plan „" + name + "“ gespeichert (nur auf diesem Gerät).");
+    var ids = selected.slice();
+    askText("Name für diesen Plan", def).then(function (name) {
+      if (name === null) return;
+      name = (name || "").trim() || def;
+      plans.push({ id: planId(), name: name, created: Date.now(), medIds: ids, times: [], notify: false });
+      savePlans(); renderPlans();
+      toast("Plan „" + name + "“ gespeichert (nur auf diesem Gerät).");
+    });
   }
   function loadPlan(id) {
     var p = findPlan(id); if (!p) return;
-    selected = planMedIds(p); lsSet(LS_SEL, selected);
+    selected = planMedIds(p); lsSet(K(LS_SEL), selected);
     renderChips(); maybeRerun();
     toast("Plan „" + p.name + "“ geladen (" + selected.length + ").");
     var sc = el("selCard"); if (sc && sc.scrollIntoView) sc.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   function deletePlan(id) {
     var p = findPlan(id); if (!p) return;
-    if (!window.confirm("Plan „" + p.name + "“ wirklich löschen?")) return;
-    plans = plans.filter(function (x) { return x.id !== id; });
-    if (openPlan === id) openPlan = null;
-    savePlans(); renderPlans(); scheduleAllReminders();
-    toast("Plan gelöscht.");
+    askConfirm("Plan löschen?", "„" + p.name + "“ wird von diesem Gerät entfernt.", "Löschen", true).then(function (ok) {
+      if (!ok) return;
+      var idx = plans.indexOf(p);
+      plans = plans.filter(function (x) { return x.id !== id; });
+      if (openPlan === id) openPlan = null;
+      savePlans(); renderPlans(); scheduleAllReminders();
+      toast("Plan „" + p.name + "“ gelöscht.", { label: "Rückgängig", onAction: function () {
+        if (findPlan(p.id)) return;
+        plans.splice(Math.min(Math.max(idx, 0), plans.length), 0, p);
+        savePlans(); renderPlans(); scheduleAllReminders();
+      } });
+    });
   }
   function renamePlan(id) {
     var p = findPlan(id); if (!p) return;
-    var name = window.prompt("Plan umbenennen:", p.name);
-    if (name === null) return;
-    p.name = (name || "").trim() || p.name; savePlans(); renderPlans();
+    askText("Plan umbenennen", p.name).then(function (name) {
+      if (name === null) return;
+      p.name = (name || "").trim() || p.name; savePlans(); renderPlans();
+    });
   }
   function addTime(id, val) {
     var p = findPlan(id); if (!p) return;
@@ -299,14 +388,99 @@
   function armTime(plan, hhmm) {
     var d = nextDelay(hhmm); if (d < 0) return;
     notifyTimers.push(setTimeout(function () {   // sehr lange Timeouts sind unzuverlässig -> max ~24h
-      var live = findPlan(plan.id);
+      var live = findPlanAny(plan.id);
       if (live && live.notify && (live.times || []).indexOf(hhmm) !== -1) fireReminder(live, hhmm);
     }, Math.min(d, 24 * 3600 * 1000)));
   }
   function scheduleAllReminders() {
     clearReminders();
     if (!("Notification" in window) || Notification.permission !== "granted") return;
-    plans.forEach(function (p) { if (p.notify) (p.times || []).forEach(function (t) { armTime(p, t); }); });
+    allPlans().forEach(function (p) { if (p.notify) (p.times || []).forEach(function (t) { armTime(p, t); }); });
+  }
+  // Erinnerungen gelten für ALLE Personen, nicht nur die gerade angezeigte.
+  function allPlans() {
+    var out = plans.slice();
+    persons.list.forEach(function (pe) { if (pe.id !== persons.cur) out = out.concat(lsGet(K(LS_PLANS, pe.id), []) || []); });
+    return out;
+  }
+  function findPlanAny(id) { var a = allPlans(); for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
+
+  // Dosierung je Plan: p.doses = { medId: { s: Stärke, m, mi, a, n } } – freie
+  // Eingabe des Nutzers (wie verordnet), keine Vorschläge aus der App.
+  var DOSE_SLOTS = [["m", "Mo", "morgens"], ["mi", "Mi", "mittags"], ["a", "Ab", "abends"], ["n", "Na", "zur Nacht"]];
+  function setDose(pid, mid, f, v) {
+    var p = findPlan(pid); if (!p) return;
+    p.doses = p.doses || {};
+    var d = p.doses[mid] = p.doses[mid] || {};
+    v = String(v || "").trim().slice(0, f === "s" ? 24 : 5);
+    if (v) d[f] = v; else delete d[f];
+    if (!Object.keys(d).length) delete p.doses[mid];
+    savePlans();
+  }
+
+  // Medikationsplan als PDF – angelehnt an den bundeseinheitlichen Plan (BMP),
+  // aber ausdrücklich KEIN offizieller BMP (kein Barcode, nicht ärztlich erstellt).
+  function makeMedPlanPDF(id) {
+    var p = findPlan(id); if (!p) return;
+    if (!window.jspdf || !window.jspdf.jsPDF) { toast("PDF-Bibliothek nicht geladen."); return; }
+    var ids = planMedIds(p);
+    if (!ids.length) { toast("Dieser Plan enthält keine Medikamente."); return; }
+    var doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+    var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
+    var M = 36, CW = PW - 2 * M, y, page = 1;
+    var now = new Date(), ds = pad(now.getDate()) + "." + pad(now.getMonth() + 1) + "." + now.getFullYear();
+    // Spalten: Wirkstoff/Präparat | Wirkstoff(e) | Stärke | Mo | Mi | Ab | Na | Hinweise
+    var cols = [{ t: "Medikament", w: 0.22 }, { t: "Wirkstoff / Gruppe", w: 0.24 }, { t: "Stärke", w: 0.12 },
+                { t: "Mo", w: 0.05, c: 1 }, { t: "Mi", w: 0.05, c: 1 }, { t: "Ab", w: 0.05, c: 1 }, { t: "Na", w: 0.05, c: 1 },
+                { t: "Hinweise (handschriftlich)", w: 0.22 }];
+    var x = M; cols.forEach(function (c) { c.x = x; c.pw = c.w * CW; x += c.pw; });
+    function foot() {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(120);
+      doc.text(pdfSafe("Selbst erstellt mit MediScan – kein bundeseinheitlicher Medikationsplan (BMP). Dosierung wie vom Nutzer eingetragen; maßgeblich ist die ärztliche Verordnung."), M, PH - 20);
+      doc.text("Seite " + page, PW - M, PH - 20, { align: "right" });
+    }
+    function head() {
+      doc.setFillColor(0, 105, 92); doc.rect(0, 0, PW, 62, "F");
+      doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(17);
+      doc.text("Medikationsplan", M, 30);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+      doc.text(pdfSafe("für: " + curPerson().name + "   ·   Plan: " + p.name), M, 48);
+      doc.text("Stand: " + ds, PW - M, 30, { align: "right" });
+      y = 80;
+      doc.setFillColor(232, 242, 240); doc.rect(M, y, CW, 20, "F");
+      doc.setTextColor(0, 77, 64); doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      cols.forEach(function (c) { doc.text(pdfSafe(c.t), c.c ? c.x + c.pw / 2 : c.x + 5, y + 13, c.c ? { align: "center" } : undefined); });
+      y += 20;
+    }
+    head();
+    doc.setDrawColor(200);
+    ids.forEach(function (mid, i) {
+      var m = MS.medById(mid), d = (p.doses && p.doses[mid]) || {};
+      var cells = [m.name, [m.activeIngredient || "", m.category || ""].filter(Boolean).join(" · "), d.s || "", d.m || "", d.mi || "", d.a || "", d.n || "", ""];
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+      var lines = cells.map(function (t, k) { return doc.splitTextToSize(pdfSafe(t), cols[k].pw - 10); });
+      var hh = Math.max(26, 8 + 12 * Math.max.apply(null, lines.map(function (l) { return l.length; })));
+      if (y + hh > PH - 36) { foot(); doc.addPage(); page++; head(); doc.setDrawColor(200); }
+      if (i % 2) { doc.setFillColor(248, 250, 250); doc.rect(M, y, CW, hh, "F"); }
+      doc.setTextColor(30);
+      lines.forEach(function (l, k) {
+        var c = cols[k];
+        doc.setFont("helvetica", k === 0 ? "bold" : "normal");
+        l.forEach(function (ln, j) { doc.text(ln, c.c ? c.x + c.pw / 2 : c.x + 5, y + 15 + j * 12, c.c ? { align: "center" } : undefined); });
+      });
+      doc.line(M, y + hh, M + CW, y + hh);
+      y += hh;
+    });
+    cols.slice(1).forEach(function (c) { doc.line(c.x, 80, c.x, y); });
+    doc.rect(M, 80, CW, y - 80);
+    y += 16;
+    if (p.times && p.times.length) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(60);
+      doc.text(pdfSafe("Erinnerungszeiten: " + p.times.join(", ") + " Uhr"), M, y);
+    }
+    foot();
+    var safe = (p.name || "Plan").replace(/[^0-9A-Za-zäöüÄÖÜß-]+/g, "_").slice(0, 40) || "Plan";
+    try { doc.save("Medikationsplan_" + safe + ".pdf"); toast("Medikationsplan erstellt."); } catch (e) { toast("PDF konnte nicht erstellt werden."); }
   }
 
   function renderPlans() {
@@ -341,12 +515,28 @@
         '<div class="mplan-prev small muted">' + esc(preview || "—") + '</div></div>';
       h += '<div class="mplan-bt">' +
         '<button type="button" class="btn small" data-act="load" data-id="' + esc(p.id) + '">Laden</button>' +
-        '<button type="button" class="btn ghost small" data-act="toggle" data-id="' + esc(p.id) + '">' + (open ? "Schließen" : (svgIcon("clock") + "Erinnern")) + '</button>' +
+        '<button type="button" class="btn ghost small" data-act="toggle" data-id="' + esc(p.id) + '">' + (open ? "Schließen" : (svgIcon("clock") + "Einnahme")) + '</button>' +
         '<button type="button" class="btn ghost small" data-act="rename" data-id="' + esc(p.id) + '">Umbenennen</button>' +
         '<button type="button" class="btn ghost small danger" data-act="del" data-id="' + esc(p.id) + '">Löschen</button>' +
         '</div></div>';
       if (open) {
         h += '<div class="mplan-rem">';
+        h += '<div class="dose-hd"><b class="small">Dosierung</b><span class="small muted"> – Stärke und Stück je Tageszeit, wie verordnet (optional)</span></div>';
+        h += '<div class="dose-tbl" role="table" aria-label="Dosierung">' +
+          '<div class="dose-row dose-head" role="row"><span role="columnheader">Medikament</span><span role="columnheader">Stärke</span>' +
+          DOSE_SLOTS.map(function (sl) { return '<span role="columnheader" title="' + sl[2] + '">' + sl[1] + '</span>'; }).join("") + '</div>';
+        planMedIds(p).forEach(function (mid) {
+          var d = (p.doses && p.doses[mid]) || {};
+          var at = ' data-pid="' + esc(p.id) + '" data-mid="' + mid + '"';
+          h += '<div class="dose-row" role="row"><span class="dose-nm" role="cell">' + esc(MS.medById(mid).name) + '</span>' +
+            '<span role="cell"><input class="dose-in dose-s"' + at + ' data-f="s" maxlength="24" placeholder="z. B. 100 mg" value="' + esc(d.s || "") + '" aria-label="Stärke ' + esc(MS.medById(mid).name) + '"></span>' +
+            DOSE_SLOTS.map(function (sl) {
+              return '<span role="cell"><input class="dose-in dose-n"' + at + ' data-f="' + sl[0] + '" maxlength="5" placeholder="–" value="' + esc(d[sl[0]] || "") + '" aria-label="' + sl[2] + ' ' + esc(MS.medById(mid).name) + '"></span>';
+            }).join("") + '</div>';
+        });
+        h += '</div>';
+        h += '<div class="rem-actions"><button type="button" class="btn ghost small" data-act="medpdf" data-id="' + esc(p.id) + '">' + svgIcon("file") + 'Medikationsplan (PDF)</button></div>';
+        h += '<div class="dose-hd"><b class="small">Erinnerung</b></div>';
         h += '<div class="rem-times">' + ((p.times && p.times.length) ? p.times.map(function (t) {
           return '<span class="timechip">' + esc(t) + '<button type="button" class="x" data-act="rmtime" data-id="' + esc(p.id) + '" data-t="' + esc(t) + '" aria-label="Zeit entfernen">×</button></span>';
         }).join("") : '<span class="small muted">Noch keine Einnahmezeit.</span>') + '</div>';
@@ -363,6 +553,135 @@
       h += '</div>';
       return h;
     }).join("");
+  }
+
+  // ---- Personen ---------------------------------------------------------------
+  function savePersons() { lsSet(LS_PERSONS, persons); }
+  function renderPersons() {
+    var sel = el("personSel"); if (!sel) return;
+    sel.innerHTML = persons.list.map(function (pe) {
+      return '<option value="' + esc(pe.id) + '"' + (pe.id === persons.cur ? " selected" : "") + '>' + esc(pe.name) + '</option>';
+    }).join("");
+    var del = el("personDel"); if (del) del.hidden = persons.list.length < 2;
+  }
+  function switchPerson(id, quiet) {
+    if (!id || id === persons.cur) return;
+    persons.cur = id; savePersons();
+    stopSpeak();
+    selected = (lsGet(K(LS_SEL), []) || []).map(function (x) { return parseInt(x, 10); }).filter(function (i) { return !!MS.medById(i); });
+    profile = lsGet(K(LS_PROF), []) || [];
+    plans = lsGet(K(LS_PLANS), []) || [];
+    openPlan = null;
+    var res = el("results"); if (res) { res.hidden = true; res.innerHTML = ""; }
+    resultsShown = false;
+    renderPersons(); renderToggles(); renderChips(); renderPlans(); scheduleAllReminders();
+    var ex = el("exampleBox"); if (ex) ex.hidden = !!selected.length;
+    if (!quiet) toast("Person: " + curPerson().name);
+  }
+  function addPerson() {
+    askText("Name der Person", "").then(function (name) {
+      if (name === null) return;
+      name = (name || "").trim(); if (!name) return;
+      var id = "p" + Date.now().toString(36);
+      persons.list.push({ id: id, name: name.slice(0, 40) }); savePersons();
+      switchPerson(id);
+    });
+  }
+  function renamePerson() {
+    var pe = curPerson();
+    askText("Person umbenennen", pe.name).then(function (name) {
+      if (name === null) return;
+      pe.name = ((name || "").trim() || pe.name).slice(0, 40); savePersons(); renderPersons();
+    });
+  }
+  function deletePerson() {
+    if (persons.list.length < 2) return;
+    var pe = curPerson();
+    askConfirm("Person entfernen?", "Auswahl, Profil und Pläne von „" + pe.name + "“ werden von diesem Gerät gelöscht.", "Entfernen", true).then(function (ok) {
+      if (!ok) return;
+      [LS_SEL, LS_PROF, LS_PLANS, LS_LAST].forEach(function (b) {
+        if (pe.id !== "p0") { try { localStorage.removeItem(K(b, pe.id)); } catch (e) {} }
+        else lsSet(b, b === LS_LAST ? null : []);
+      });
+      persons.list = persons.list.filter(function (x) { return x.id !== pe.id; });
+      persons.cur = null; switchPerson(persons.list[0].id, true);
+      toast("„" + pe.name + "“ entfernt.");
+    });
+  }
+
+  // ---- Verschlüsselte Sicherung (WebCrypto: PBKDF2-SHA-256 + AES-GCM) ----------
+  // Enthält alle MediScan-Daten dieses Geräts außer dem Lizenzschlüssel. Das
+  // Passwort verlässt das Gerät nie; ohne Passwort ist die Datei nicht lesbar.
+  var BK_ITER = 250000;
+  function b64(buf) { var b = new Uint8Array(buf), s = ""; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
+  function unb64(str) { var s = atob(str), b = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+  function bkKey(pw, salt, iter) {
+    var enc = new TextEncoder();
+    return crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]).then(function (base) {
+      return crypto.subtle.deriveKey({ name: "PBKDF2", salt: salt, iterations: iter, hash: "SHA-256" }, base,
+        { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    });
+  }
+  function backupKeys() {
+    var out = {};
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf("ms.") === 0 && k !== "ms.lic" && k.indexOf("ms.install") !== 0) out[k] = localStorage.getItem(k);
+    }
+    return out;
+  }
+  function exportBackup() {
+    if (!(window.crypto && crypto.subtle && window.TextEncoder)) { toast("Verschlüsselung wird von diesem Browser nicht unterstützt."); return; }
+    msDialog({ title: "Passwort für die Sicherung", text: "Mindestens 8 Zeichen. Ohne dieses Passwort lässt sich die Datei nicht wiederherstellen – bitte gut merken.", input: "", password: "new", ok: "Weiter" }).then(function (pw) {
+      if (pw === null) return;
+      if ((pw || "").length < 8) { toast("Das Passwort braucht mindestens 8 Zeichen."); return; }
+      return msDialog({ title: "Passwort wiederholen", input: "", password: "new", ok: "Sicherung erstellen" }).then(function (pw2) {
+        if (pw2 === null) return;
+        if (pw2 !== pw) { toast("Die Passwörter stimmen nicht überein."); return; }
+        var salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+        var plain = new TextEncoder().encode(JSON.stringify({ app: "MediScan", at: new Date().toISOString(), data: backupKeys() }));
+        return bkKey(pw, salt, BK_ITER).then(function (key) {
+          return crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, plain);
+        }).then(function (ct) {
+          var file = { format: "mediscan-backup", v: 1, kdf: "PBKDF2-SHA256", iter: BK_ITER, cipher: "AES-GCM", salt: b64(salt), iv: b64(iv), data: b64(ct) };
+          var d = new Date();
+          if (download("MediScan_Sicherung_" + d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + ".msbak", JSON.stringify(file), "application/json"))
+            toast("Sicherung erstellt (verschlüsselt).");
+        });
+      });
+    }).catch(function () { toast("Sicherung fehlgeschlagen."); });
+  }
+  function importBackup(f) {
+    if (!f) return;
+    if (!(window.crypto && crypto.subtle && window.TextDecoder)) { toast("Verschlüsselung wird von diesem Browser nicht unterstützt."); return; }
+    if (f.size > 5 * 1024 * 1024) { toast("Datei ist zu groß für eine MediScan-Sicherung."); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var file; try { file = JSON.parse(rd.result); } catch (e) { file = null; }
+      if (!file || file.format !== "mediscan-backup" || !file.salt || !file.iv || !file.data) { toast("Keine gültige MediScan-Sicherung."); return; }
+      var iter = Math.min(Math.max(parseInt(file.iter, 10) || BK_ITER, 100000), 2000000);
+      msDialog({ title: "Passwort der Sicherung", input: "", password: "cur", ok: "Entschlüsseln" }).then(function (pw) {
+        if (pw === null) return;
+        return bkKey(pw, unb64(file.salt), iter).then(function (key) {
+          return crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(file.iv) }, key, unb64(file.data));
+        }).then(function (buf) {
+          var obj = JSON.parse(new TextDecoder().decode(buf));
+          var data = obj && obj.data; if (!data || typeof data !== "object") throw new Error("leer");
+          var n = Object.keys(data).filter(function (k) { return k.indexOf("ms.") === 0 && k !== "ms.lic"; }).length;
+          return askConfirm("Sicherung einspielen?", "Die aktuellen MediScan-Daten auf diesem Gerät werden durch die Sicherung vom " + deDate(obj.at) + " ersetzt (" + n + " Einträge).", "Einspielen", true).then(function (ok) {
+            if (!ok) return;
+            Object.keys(backupKeys()).forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+            Object.keys(data).forEach(function (k) {
+              if (k.indexOf("ms.") === 0 && k !== "ms.lic" && typeof data[k] === "string") { try { localStorage.setItem(k, data[k]); } catch (e) {} }
+            });
+            toast("Sicherung eingespielt – App wird neu geladen.");
+            setTimeout(function () { location.reload(); }, 900);
+          });
+        }, function () { toast("Falsches Passwort oder beschädigte Datei."); });
+      });
+    };
+    rd.onerror = function () { toast("Datei konnte nicht gelesen werden."); };
+    rd.readAsText(f);
   }
 
   // ---- Manuelle Suche + Autocomplete ----------------------------------------
@@ -409,7 +728,7 @@
   function toggleProfile(key) {
     var i = profile.indexOf(key);
     if (i === -1) profile.push(key); else profile.splice(i, 1);
-    lsSet(LS_PROF, profile); renderToggles(); maybeRerun();
+    lsSet(K(LS_PROF), profile); renderToggles(); maybeRerun();
   }
 
   // ---- OCR (Tesseract, faul geladen) ----------------------------------------
@@ -569,7 +888,11 @@
 
   async function runOCR(file) {
     var thumb = el("thumb");
-    try { thumb.src = URL.createObjectURL(file); thumb.hidden = false; } catch (e) {}
+    try {
+      // Vorheriges Vorschaubild freigeben (sonst bleibt jedes Foto bis zum Neuladen im Speicher).
+      if (thumb.src && thumb.src.indexOf("blob:") === 0) URL.revokeObjectURL(thumb.src);
+      thumb.src = URL.createObjectURL(file); thumb.hidden = false;
+    } catch (e) {}
     showRaw("");
     showOCR(true); setBar(3, "Bild wird aufbereitet …");
     var worker = null;
@@ -825,25 +1148,69 @@
     if (hd && hd.focus) { try { hd.focus({ preventScroll: true }); } catch (e) { try { hd.focus(); } catch (x) {} } }
   }
 
+  // Beschreibungstexte der DB sind in Abschnitte gegliedert („MECHANISMUS: …",
+  // „KLINISCHE FOLGEN: …", „MASSNAHMEN: …"). Wir sortieren NUR um – kein Wort
+  // wird erfunden oder umformuliert:
+  //   „Was kann passieren?" ← KLINISCHE FOLGEN / KLINISCHES BILD
+  //   „Was ist zu tun?"     ← MASSNAHMEN
+  //   „Warum diese Warnung?" (aufklappbar) ← MECHANISMUS und alle übrigen Abschnitte
+  var SEC_HAPPEN = { "KLINISCHE FOLGEN": 1, "KLINISCHES BILD": 1 };
+  var SEC_TODO = { "MASSNAHMEN": 1 };
+  function splitSections(text) {
+    var out = { lead: [], happen: [], todo: [], why: [] };
+    String(text || "").split(/\n\s*\n/).forEach(function (para) {
+      para = para.trim(); if (!para) return;
+      var m = /^([A-ZÄÖÜ][A-ZÄÖÜß0-9 \-\/&().]{2,40}):\s*([\s\S]*)$/.exec(para);
+      if (!m) { out.lead.push(para); return; }
+      var head = m[1].trim(), body = m[2].trim();
+      if (SEC_HAPPEN[head]) out.happen.push(body);
+      else if (SEC_TODO[head]) out.todo.push(body);
+      else out.why.push({ head: head, body: body });
+    });
+    return out;
+  }
+  // Glyphen je Stufe – zusätzlich zur Farbe (farbenblind-tauglich):
+  // 1 i · 2 ! · 3 !! · 4 × ; Doppelungen „=".
+  // „ZEITLICHER VERLAUF" → „Zeitlicher Verlauf"; Kürzel wie FDA/EMA/COPD bleiben.
+  function prettyHead(hd) {
+    return hd.split(/([\s\-\/]+)/).map(function (w) {
+      if (/^[A-Z]{2,4}$/.test(w) && !/^(BEI|DER|DIE|DAS|UND|ALS)$/.test(w)) return w;
+      return w.charAt(0) + w.slice(1).toLowerCase();
+    }).join("");
+  }
+  function sevGlyph(rank) { return rank >= 4 ? "×" : rank === 3 ? "!!" : rank === 2 ? "!" : rank === 1 ? "i" : ""; }
   function card(sevObj, title, o) {
     var rank = sevObj.rank || 0;
-    var cls = "sev" + rank;
-    // Schweregrad-Ring (rein optisch): Füllgrad = rank/4, Glyph wie im Ergebnis-Banner.
+    var cls = o.cls || ("sev" + rank);
+    // Schweregrad-Ring (rein optisch): Füllgrad = rank/4.
     var C = 100.53;                                              // Umfang 2·π·16
     var off = (C * (1 - Math.max(0, Math.min(4, rank)) / 4)).toFixed(2);
-    var glyph = rank >= 2 ? "!" : (rank === 1 ? "i" : "");
-    var h = '<div class="res ' + cls + '">';
-    h += '<div class="head"><div class="ttl">' + esc(title) + '</div>';
+    var glyph = o.glyph != null ? o.glyph : sevGlyph(rank);
+    var h = '<div class="res ' + cls + '"' + (o.key ? ' data-key="' + esc(o.key) + '"' : '') + '>';
+    h += '<div class="head"><div class="ttl">' + (o.isNew ? '<span class="newtag">Neu</span>' : '') + esc(title) + '</div>';
     h += '<div class="sevmark">' +
       '<svg class="sevring" viewBox="0 0 40 40" aria-hidden="true" style="--ring-c:' + C + ';--ring-o:' + off + '">' +
       '<circle class="sevring-bg" cx="20" cy="20" r="16"/>' +
       '<circle class="sevring-fg" cx="20" cy="20" r="16" transform="rotate(-90 20 20)"/>' +
-      '<text class="sevring-gl" x="20" y="20">' + glyph + '</text>' +
+      '<text class="sevring-gl" x="20" y="20">' + esc(glyph) + '</text>' +
       '</svg>' +
-      '<span class="sevmark-lb">' + esc(sevObj.label) + '</span></div></div>';
+      '<span class="sevmark-lb">' + esc(o.label || sevObj.label) + '</span></div></div>';
     if (o.pair) h += '<div class="pair">' + o.pair + '</div>';
     if (o.medtags) h += '<div class="medtags">' + o.medtags + '</div>';
-    if (o.desc) h += '<div class="desc">' + esc(o.desc) + '</div>';
+    if (o.desc) {
+      var sec = splitSections(o.desc);
+      if (sec.lead.length) h += '<div class="desc">' + esc(sec.lead.join("\n\n")) + '</div>';
+      if (sec.happen.length) h += '<div class="sec sec-happen"><div class="sec-h">Was kann passieren?</div><div class="sec-b">' + esc(sec.happen.join("\n\n")) + '</div></div>';
+      if (sec.todo.length) h += '<div class="sec sec-todo"><div class="sec-h">Was ist zu tun?</div><div class="sec-b">' + esc(sec.todo.join("\n\n")) + '</div></div>';
+      if (sec.why.length) {
+        h += '<details class="why"><summary>Warum diese Warnung?</summary>';
+        sec.why.forEach(function (w) {
+          var hd = w.head === "MECHANISMUS" ? "Wie es dazu kommt (Mechanismus)" : prettyHead(w.head);
+          h += '<div class="why-p"><b>' + esc(hd) + ':</b> ' + esc(w.body) + '</div>';
+        });
+        h += '</details>';
+      }
+    }
     if (o.sys) h += '<div class="sys">Betroffene Systeme: ' + esc(o.sys) + '</div>';
     if (o.rec) h += '<div class="rec"><b>Empfehlung:</b> ' + esc(o.rec) + '</div>';
     h += '</div>';
@@ -909,10 +1276,44 @@
     var worstSev = null;
     r.interactions.concat(r.complex, r.risks).forEach(function (x) { if (!worstSev || x.sev.rank > worstSev.rank) worstSev = x.sev; });
 
+    // Vergleich mit der letzten Prüfung: Schlüssel je Karte (Art|Titel|Medikament).
+    // Nur sinnvoll, wenn sich die Auswahl mit der letzten überschneidet.
+    var items = [];
+    dups.forEach(function (d) { items.push({ k: "d|" + d.title + "|" + (d.names || []).join(","), t: d.title }); });
+    r.interactions.forEach(function (it) { items.push({ k: "i|" + it.title + "|" + it.drug1 + "|" + it.drug2, t: it.title + " (" + it.drug1 + " + " + it.drug2 + ")" }); });
+    r.complex.forEach(function (c) { items.push({ k: "c|" + c.title, t: c.title }); });
+    r.risks.forEach(function (rk) { items.push({ k: "r|" + rk.title + "|" + rk.medName, t: rk.title + " (" + rk.medName + ")" }); });
+    var last = lsGet(K(LS_LAST), null), prevKeys = null;
+    if (last && last.keys && last.ids && last.ids.some(function (id) { return selected.indexOf(id) !== -1; })) {
+      prevKeys = {}; last.keys.forEach(function (x) { prevKeys[x.k] = x.t; });
+    }
+    var nowKeys = {}; items.forEach(function (x) { nowKeys[x.k] = 1; });
+    var isNew = function (k) { return !!prevKeys && !(k in prevKeys); };
+    var gone = prevKeys ? Object.keys(prevKeys).filter(function (k) { return !nowKeys[k]; }).map(function (k) { return prevKeys[k]; }) : [];
+    lsSet(K(LS_LAST), { ids: selected.slice(), keys: items.slice(0, 300), at: Date.now() });
+    var ki = 0;
+    function nextKey() { return items[ki++].k; }
+
+    // Profil leer? Zeigen, welche Profil-Hinweise es zu dieser Auswahl gäbe
+    // (nur Anzahl + Kategorie-Namen aus der DB, keine Inhalte).
+    var profHint = "";
+    if (!profile.length) {
+      var allR = MS.analyze(selected, MS.RISK_CATEGORIES.map(function (c) { return c.key; })).risks;
+      if (allR.length) {
+        var cats = [];
+        allR.forEach(function (x) { if (x.categoryLabel && cats.indexOf(x.categoryLabel) === -1) cats.push(x.categoryLabel); });
+        profHint = '<div class="prof-hint"><span>Zu Ihrer Auswahl gibt es <b>' + allR.length + (allR.length === 1 ? ' Hinweis' : ' Hinweise') +
+          '</b> für bestimmte Personengruppen' + (cats.length ? ' (' + esc(cats.slice(0, 5).join(", ")) + (cats.length > 5 ? ' …' : '') + ')' : '') +
+          '. Geben Sie im Profil an, was auf Sie zutrifft.</span><button class="btn ghost small" id="toProfileBtn" type="button">Zum Profil</button></div>';
+      }
+    }
+
     var h = '<div class="card">';
     h += '<div class="res-head">'
       + '<h2 id="resHeading" tabindex="-1">Ergebnis</h2>'
       + '<div class="res-actions">'
+      + '<button class="btn ghost small" id="plainBtn" type="button" aria-pressed="' + (plainOn() ? 'true' : 'false') + '">Einfache Ansicht</button>'
+      + (window.speechSynthesis ? '<button class="btn ghost small" id="speakBtn" type="button">Vorlesen</button>' : '')
       + '<button class="btn ghost small" id="shareBtn" type="button">' + svgIcon("share") + 'Für Arzt/Apotheke</button>'
       + '<button class="btn ghost small" id="pdfBtn" type="button">' + svgIcon("download") + 'PDF-Bericht</button>'
       + '</div></div>';
@@ -930,6 +1331,10 @@
       stat(iN, "Wechselwirkungen") +
       stat(cN, "Mehrfach") +
       stat(rN, "Risiken") + '</div>';
+    if (gone.length) {
+      h += '<div class="gone-note"><b>Seit der letzten Prüfung entfallen:</b> ' + esc(gone.slice(0, 6).join("; ")) + (gone.length > 6 ? ' … (+' + (gone.length - 6) + ')' : '') + '</div>';
+    }
+    h += profHint;
 
     if (iN + cN + rN + dN === 0) {
       h += '<div class="ok-note" style="margin-top:12px"><svg class="ico ico-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>In der hinterlegten Datenbank wurden keine Wechselwirkungen, Risiken oder Doppelungen zu dieser Kombination gefunden. Das ist <u>keine</u> Garantie der Unbedenklichkeit – besprechen Sie Ihre Medikation mit Arzt/Apotheke.</span></div>';
@@ -945,7 +1350,8 @@
       h += '<p class="small muted" style="margin:-2px 0 10px">Struktureller Hinweis aus den Stammdaten – gleicher Wirkstoff bzw. gleiche Wirkstoffgruppe. Keine klinische Bewertung; ob eine Doppelung gewollt ist, klären Sie bitte mit Arzt oder Apotheke.</p>';
       dups.forEach(function (d) {
         var tags = (d.names || []).map(function (nm) { return '<span class="medtag">' + esc(nm) + '</span>'; }).join("");
-        h += card(d.sev, d.title, { medtags: tags, desc: d.description });
+        var k = nextKey();
+        h += card(d.sev, d.title, { medtags: tags, desc: d.description, glyph: "=", cls: d.type === "class" ? "sevinfo" : null, key: k, isNew: isNew(k) });
       });
       h += '</div>';
     }
@@ -953,9 +1359,10 @@
     if (iN) {
       h += '<div class="card"><h2>Wechselwirkungen <span class="n">' + iN + '</span></h2>';
       r.interactions.forEach(function (it) {
+        var k = nextKey();
         h += card(it.sev, it.title, {
           pair: esc(it.drug1) + '<span class="arrow">+</span>' + esc(it.drug2),
-          desc: it.description
+          desc: it.description, key: k, isNew: isNew(k)
         });
       });
       h += '</div>';
@@ -964,16 +1371,18 @@
       h += '<div class="card"><h2>Mehrfach-Wechselwirkungen <span class="n">' + cN + '</span></h2>';
       r.complex.forEach(function (c) {
         var tags = splitNames(c.drugNames).map(function (nm) { return '<span class="medtag">' + esc(nm) + '</span>'; }).join("");
-        h += card(c.sev, c.title, { medtags: tags, desc: c.description, sys: c.affectedSystems, rec: c.recommendation });
+        var k = nextKey();
+        h += card(c.sev, c.title, { medtags: tags, desc: c.description, sys: c.affectedSystems, rec: c.recommendation, key: k, isNew: isNew(k) });
       });
       h += '</div>';
     }
     if (rN) {
       h += '<div class="card"><h2>Individuelle Patientenrisiken <span class="n">' + rN + '</span></h2>';
       r.risks.forEach(function (rk) {
-        var pair = '<b>' + esc(rk.medName) + '</b>' + (rk.categoryLabel ? ' <span class="arrow">·</span>' + esc(rk.categoryLabel) : "");
-        var desc = rk.riskCondition ? (rk.riskCondition + " – " + (rk.description || "")) : rk.description;
-        h += card(rk.sev, rk.title, { pair: pair, desc: desc, rec: rk.recommendation });
+        var pair = '<b>' + esc(rk.medName) + '</b>' + (rk.categoryLabel ? ' <span class="arrow">·</span>' + esc(rk.categoryLabel) : "") +
+          (rk.riskCondition ? ' <span class="arrow">·</span>' + esc(rk.riskCondition) : "");
+        var k = nextKey();
+        h += card(rk.sev, rk.title, { pair: pair, desc: rk.description, rec: rk.recommendation, key: k, isNew: isNew(k) });
       });
       h += '</div>';
     }
@@ -999,7 +1408,61 @@
       if (!canShare) sh.hidden = true;
       else sh.onclick = function () { shareReport(r); };
     }
+    var tp = el("toProfileBtn");
+    if (tp) tp.onclick = function () {
+      var pc = el("profileCard");
+      if (pc) { pc.scrollIntoView({ behavior: "smooth", block: "start" }); var f = pc.querySelector("button, input"); if (f) setTimeout(function () { try { f.focus({ preventScroll: true }); } catch (e) {} }, 400); }
+    };
+    var pb = el("plainBtn");
+    if (pb) pb.onclick = function () {
+      var on = !plainOn(); lsSet(LS_PLAIN, on); applyPlain();
+      pb.setAttribute("aria-pressed", on ? "true" : "false");
+    };
+    var sp = el("speakBtn");
+    if (sp) sp.onclick = function () { toggleSpeak(sp); };
+    stopSpeak();
     ensureFDA();
+  }
+  // ---- Einfache Ansicht (größere Schrift, ohne Hintergrund-Details) ---------
+  function plainOn() { return !!lsGet(LS_PLAIN, false); }
+  function applyPlain() { document.body.classList.toggle("plain", plainOn()); }
+  // ---- Vorlesen (Web Speech API, lokal im Browser) --------------------------
+  // Liest Überschrift, Einstufung und die Abschnitte „Was kann passieren?" /
+  // „Was ist zu tun?" – ausschließlich der angezeigte DB-Text.
+  var speaking = false;
+  function stopSpeak() {
+    speaking = false;
+    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+    var b = el("speakBtn"); if (b) b.textContent = "Vorlesen";
+  }
+  function toggleSpeak(btn) {
+    if (speaking) { stopSpeak(); return; }
+    var root = el("results"); if (!root) return;
+    var parts = [];
+    var v = root.querySelector(".verdict .vtx b"); if (v) parts.push(v.textContent);
+    var ok = root.querySelector(".ok-note span"); if (ok) parts.push(ok.textContent);
+    var cards = root.querySelectorAll(".res");
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i], t = c.querySelector(".ttl"), lb = c.querySelector(".sevmark-lb"), pr = c.querySelector(".pair");
+      var txt = (t ? t.textContent.replace(/^Neu/, "") : "") + (lb ? ". " + lb.textContent : "") + (pr ? ". " + pr.textContent.replace(/·/g, ",") : "") + ".";
+      var lead = c.querySelector(".desc"); if (lead) txt += " " + lead.textContent;
+      var secs = c.querySelectorAll(".sec");
+      for (var j = 0; j < secs.length; j++) txt += " " + secs[j].querySelector(".sec-h").textContent + " " + secs[j].querySelector(".sec-b").textContent;
+      var rec = c.querySelector(".rec"); if (rec) txt += " " + rec.textContent;
+      parts.push(txt);
+    }
+    if (!parts.length) return;
+    var synth = window.speechSynthesis;
+    synth.cancel();
+    speaking = true; btn.textContent = "Stopp";
+    var voices = synth.getVoices ? synth.getVoices() : [];
+    var de = voices.filter(function (x) { return /^de/i.test(x.lang); })[0];
+    parts.forEach(function (p, idx) {
+      var u = new SpeechSynthesisUtterance(p);
+      u.lang = "de-DE"; if (de) u.voice = de; u.rate = 0.95;
+      if (idx === parts.length - 1) u.onend = u.onerror = function () { if (speaking) stopSpeak(); };
+      synth.speak(u);
+    });
   }
   function stat(n, label) { return '<div class="stat"><b data-to="' + (n || 0) + '">' + n + '</b><span>' + esc(label) + '</span></div>'; }
   // Zahlen im Ergebnis kurz hochzählen (rein optisch; setzt bei reduzierter Bewegung sofort den Endwert).
@@ -1025,11 +1488,18 @@
   }
 
   // ---- PDF-Bericht (jsPDF, WinAnsi-sicher) ----------------------------------
+  // Zeichen außerhalb Latin-1 vor dem Abschneiden umschreiben, statt sie still zu
+  // verlieren: sonst wurde aus „β1-Blocker" „1-Blocker", aus „μ-Opioid" „-Opioid"
+  // und Gedankenstriche/Anführungszeichen/Aufzählungspunkte fehlten im PDF.
+  var PDF_MAP = { "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "κ": "kappa", "ω": "omega",
+                  "μ": "\u00B5", "–": "-", "—": "-", "„": '"', "“": '"', "”": '"', "‚": "'", "‘": "'", "’": "'",
+                  "…": "...", "•": "-" };
   function pdfSafe(s) {
     return String(s == null ? "" : s)
       .replace(/≥/g, ">=").replace(/≤/g, "<=")
       .replace(/[→↔⟷⟶⇄]/g, "->")
       .replace(/[⚠⬇]/g, "").replace(/ /g, " ")
+      .replace(/[αβγδκωμ–—„“”‚‘’…•]/g, function (c) { return PDF_MAP[c]; })
       .replace(/[^\x00-\xFF]/g, "");
   }
   var SEVRGB = { 0: [117, 117, 117], 1: [56, 142, 60], 2: [245, 124, 0], 3: [229, 57, 53], 4: [183, 28, 28] };
@@ -1043,7 +1513,7 @@
 
     function foot() {
       doc.setFontSize(7.5); doc.setTextColor(150);
-      doc.text("MediScan – Informationswerkzeug, kein Ersatz für ärztliche Beratung.", M, PH - 24);
+      doc.text(pdfSafe("MediScan – Informationswerkzeug, kein Ersatz für ärztliche Beratung."), M, PH - 24);
       doc.text("Seite " + page, PW - M, PH - 24, { align: "right" });
     }
     function newPage() { foot(); doc.addPage(); page++; y = M; }
@@ -1137,8 +1607,8 @@
       if (fdaRows.length) {
         ensure(30);
         doc.setDrawColor(219, 232, 230); doc.line(M, y, M + CW, y); y += 12;
-        line("Ergaenzend: US-FDA-Fachinformation (" + fdaRows.length + ")", 13, "bold", [0, 77, 64], 2);
-        line("Oeffentliche Original-Angaben der US-FDA, englischsprachig und unveraendert. Von MediScan nicht bewertet oder in Schweregrade uebersetzt; kann von deutschen Fachinfos abweichen.", 8.5, "italic", [110, 110, 110], 4);
+        line("Ergänzend: US-FDA-Fachinformation (" + fdaRows.length + ")", 13, "bold", [0, 77, 64], 2);
+        line("Öffentliche Original-Angaben der US-FDA, englischsprachig und unverändert. Von MediScan nicht bewertet oder in Schweregrade übersetzt; kann von deutschen Fachinfos abweichen.", 8.5, "italic", [110, 110, 110], 4);
         fdaRows.forEach(function (row) {
           ensure(20);
           line(row.name, 10.5, "bold", [0, 90, 80]);
@@ -1278,7 +1748,24 @@
       else if (act === "rmtime") removeTime(id, b.getAttribute("data-t"));
       else if (act === "ics") exportICS(id);
       else if (act === "notify") toggleNotify(id);
+      else if (act === "medpdf") makeMedPlanPDF(id);
     });
+    if (pl) pl.addEventListener("change", function (e) {
+      var t = e.target; if (!t.classList || !t.classList.contains("dose-in")) return;
+      setDose(t.getAttribute("data-pid"), t.getAttribute("data-mid"), t.getAttribute("data-f"), t.value);
+    });
+
+    // Personen & Sicherung
+    var psel = el("personSel"); if (psel) psel.addEventListener("change", function () { switchPerson(psel.value); });
+    var pa = el("personAdd"); if (pa) pa.addEventListener("click", addPerson);
+    var pr = el("personRen"); if (pr) pr.addEventListener("click", renamePerson);
+    var pd = el("personDel"); if (pd) pd.addEventListener("click", deletePerson);
+    var bex = el("backupExport"); if (bex) bex.addEventListener("click", exportBackup);
+    var bim = el("backupImport"), bf = el("backupFile");
+    if (bim && bf) {
+      bim.addEventListener("click", function () { try { bf.click(); } catch (x) {} });
+      bf.addEventListener("change", function (e) { var f = e.target.files && e.target.files[0]; try { e.target.value = ""; } catch (x) {} importBackup(f); });
+    }
 
     el("toggles").addEventListener("click", function (e) {
       var b = e.target.closest("button.toggle[data-key]"); if (b) toggleProfile(b.getAttribute("data-key"));
@@ -1321,14 +1808,24 @@
     window.addEventListener("pagehide", stopScan);
 
     el("analyzeBtn").addEventListener("click", analyze);
+    // Beispiel für Erstnutzer: zwei häufige Schmerzmittel (Treffer kommen aus der DB-Suche).
+    var exb = el("exampleBtn");
+    if (exb) exb.addEventListener("click", function () {
+      var ids = [];
+      ["Aspirin", "Ibuprofen"].forEach(function (n) { var hit = MS.search(n, 1)[0]; if (hit) ids = ids.concat(hit.ids); });
+      if (!ids.length) { toast("Beispiel nicht gefunden."); return; }
+      addByIds(ids); analyze();
+    });
   }
 
   // ---- Start ----------------------------------------------------------------
   function boot() {
     if (!MS) { toast("Fehler: Engine nicht geladen."); return; }
-    profile = lsGet(LS_PROF, []) || [];
+    applyPlain();
+    profile = lsGet(K(LS_PROF), []) || [];
     pznMap = lsGet(LS_PZN, {}) || {};
-    plans = lsGet(LS_PLANS, []) || [];
+    plans = lsGet(K(LS_PLANS), []) || [];
+    renderPersons();
     renderToggles();
     wire();
     var btn = el("analyzeBtn"); btn.disabled = true; btn.textContent = "Datenbank wird geladen …";
@@ -1336,11 +1833,12 @@
       ready = true;
       var meta = MS.meta();
       // gespeicherte Auswahl auf noch existierende IDs filtern
-      selected = (lsGet(LS_SEL, []) || []).map(function (x) { return parseInt(x, 10); }).filter(function (id) { return !!MS.medById(id); });
-      lsSet(LS_SEL, selected);
+      selected = (lsGet(K(LS_SEL), []) || []).map(function (x) { return parseInt(x, 10); }).filter(function (id) { return !!MS.medById(id); });
+      lsSet(K(LS_SEL), selected);
       renderChips();
       renderPlans(); scheduleAllReminders();
-      btn.disabled = false; btn.textContent = "Wechselwirkungen prüfen";
+      btn.disabled = false; updateAnalyzeBtn();
+      var ex = el("exampleBox"); if (ex) ex.hidden = !!selected.length;
       setTab("manual");
     }).catch(function (err) {
       btn.textContent = "Datenbank nicht verfügbar";
