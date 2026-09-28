@@ -177,6 +177,8 @@ Deno.serve(async (req: Request) => {
       const lic = pre[0];
       if (action === "activate" && lic.status === "revoked") return json({ error: "is_revoked" }, 409);
       if (action === "resend_code" && !lic.token) return json({ error: "no_code_yet" }, 409);
+      // Erneut senden darf eine gesperrte Lizenz NICHT still reaktivieren (Update unten setzt status=active).
+      if (action === "resend_code" && lic.status === "revoked") return json({ error: "is_revoked" }, 409);
 
       let row: any = null;
       if (lic.token) {
