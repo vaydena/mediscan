@@ -1430,19 +1430,23 @@
   // Liest Überschrift, Einstufung und die Abschnitte „Was kann passieren?" /
   // „Was ist zu tun?" – ausschließlich der angezeigte DB-Text.
   var speaking = false;
-  // Stimme: bevorzugt „Seraphina“ (Microsoft, natürliche Neural-Stimme; in Edge
-  // verfügbar), sonst die natürlichste vorhandene deutsche Stimme statt der
-  // ersten beliebigen (oft roboterhaften) System-Stimme.
-  var VOICE_PREFS = [/seraphina/i, /katja.*(natural|online)/i, /(natural|neural|online)/i, /google/i, /(premium|enhanced|erweitert)/i, /anna/i];
+  // Stimme: bevorzugt „Seraphina“, sonst die natürlichste deutsche Stimme statt
+  // der ersten beliebigen (oft roboterhaften). Nur auf dem Gerät installierte
+  // Stimmen (localService) – „Online“-Stimmen (z. B. Edge „Seraphina Online“,
+  // Chrome „Google Deutsch“) schicken den vorgelesenen Text an Microsoft/Google.
+  // Gibt es keine lokale deutsche Stimme, bleibt es beim bisherigen Verhalten.
+  var VOICE_PREFS = [/seraphina/i, /(natural|neural)/i, /(premium|enhanced|erweitert)/i, /anna/i, /katja/i];
   function pickVoice(synth) {
     var voices = synth.getVoices ? synth.getVoices() : [];
-    var sera = voices.filter(function (x) { return /seraphina/i.test(x.name); })[0];
+    var local = voices.filter(function (x) { return x.localService !== false; });
+    var sera = local.filter(function (x) { return /seraphina/i.test(x.name); })[0];
     if (sera) return sera;
-    var de = voices.filter(function (x) { return /^de/i.test(x.lang); });
+    var de = local.filter(function (x) { return /^de/i.test(x.lang); });
+    if (!de.length) return voices.filter(function (x) { return /^de/i.test(x.lang); })[0] || null;
     for (var i = 0; i < VOICE_PREFS.length; i++) {
       for (var j = 0; j < de.length; j++) if (VOICE_PREFS[i].test(de[j].name)) return de[j];
     }
-    return de[0] || null;
+    return de[0];
   }
   // Chrome/Edge liefern die Stimmenliste erst verzögert – früh anstoßen.
   try { if (window.speechSynthesis) window.speechSynthesis.getVoices(); } catch (e) {}
