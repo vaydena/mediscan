@@ -1430,6 +1430,22 @@
   // Liest Überschrift, Einstufung und die Abschnitte „Was kann passieren?" /
   // „Was ist zu tun?" – ausschließlich der angezeigte DB-Text.
   var speaking = false;
+  // Stimme: bevorzugt „Seraphina“ (Microsoft, natürliche Neural-Stimme; in Edge
+  // verfügbar), sonst die natürlichste vorhandene deutsche Stimme statt der
+  // ersten beliebigen (oft roboterhaften) System-Stimme.
+  var VOICE_PREFS = [/seraphina/i, /katja.*(natural|online)/i, /(natural|neural|online)/i, /google/i, /(premium|enhanced|erweitert)/i, /anna/i];
+  function pickVoice(synth) {
+    var voices = synth.getVoices ? synth.getVoices() : [];
+    var sera = voices.filter(function (x) { return /seraphina/i.test(x.name); })[0];
+    if (sera) return sera;
+    var de = voices.filter(function (x) { return /^de/i.test(x.lang); });
+    for (var i = 0; i < VOICE_PREFS.length; i++) {
+      for (var j = 0; j < de.length; j++) if (VOICE_PREFS[i].test(de[j].name)) return de[j];
+    }
+    return de[0] || null;
+  }
+  // Chrome/Edge liefern die Stimmenliste erst verzögert – früh anstoßen.
+  try { if (window.speechSynthesis) window.speechSynthesis.getVoices(); } catch (e) {}
   function stopSpeak() {
     speaking = false;
     try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
@@ -1455,11 +1471,10 @@
     var synth = window.speechSynthesis;
     synth.cancel();
     speaking = true; btn.textContent = "Stopp";
-    var voices = synth.getVoices ? synth.getVoices() : [];
-    var de = voices.filter(function (x) { return /^de/i.test(x.lang); })[0];
+    var voice = pickVoice(synth);
     parts.forEach(function (p, idx) {
       var u = new SpeechSynthesisUtterance(p);
-      u.lang = "de-DE"; if (de) u.voice = de; u.rate = 0.95;
+      u.lang = voice && /^de/i.test(voice.lang) ? voice.lang : "de-DE"; if (voice) u.voice = voice; u.rate = 0.95;
       if (idx === parts.length - 1) u.onend = u.onerror = function () { if (speaking) stopSpeak(); };
       synth.speak(u);
     });
