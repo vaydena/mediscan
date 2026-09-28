@@ -1,0 +1,65 @@
+name: Vorlese-Aufnahmen (Seraphina)
+
+# Erzeugt fehlende Vorlese-Aufnahmen (MediScan) mit der Stimme Seraphina (edge-tts) und
+# committet sie nach media/tts/ auf denselben Branch zurueck.
+# Ausloeser: Aenderung an tools/tts-texts.json (neu erzeugen mit: node tools/tts_extract.js,
+# z. B. nach Aenderungen an der Referenzdatenbank) oder manuell ueber den Actions-Tab.
+# Nur generische Texte der Referenzdatenbank - niemals Nutzer- oder Gesundheitsdaten.
+# Reicht das Zeitbudget (TTS_BUDGET_MIN) nicht, wird der Zwischenstand committet;
+# ein erneuter Lauf setzt fort.
+on:
+  push:
+    paths:
+      - tools/tts-texts.json
+      - tools/tts_build.py
+      - .github/workflows/tts.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tts-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Repo auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: edge-tts installieren
+        run: pip install "edge-tts==7.2.8"
+
+      - name: Aufnahmen erzeugen
+        id: build
+        continue-on-error: true
+        env:
+          TTS_BUDGET_MIN: "300"
+        run: python tools/tts_build.py
+
+      - name: Aufnahmen committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A media/tts
+          if git diff --cached --quiet; then
+            echo "Keine neuen Aufnahmen."
+          else
+            git commit -q -m "Vorlese-Aufnahmen (Seraphina) aktualisiert"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Ergebnis pruefen
+        if: steps.build.outcome != 'success'
+        run: |
+          echo "::error::Nicht alle Aufnahmen konnten erzeugt werden (siehe Schritt 'Aufnahmen erzeugen'). Workflow erneut starten."
+          exit 1

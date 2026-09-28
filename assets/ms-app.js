@@ -1313,7 +1313,7 @@
       + '<h2 id="resHeading" tabindex="-1">Ergebnis</h2>'
       + '<div class="res-actions">'
       + '<button class="btn ghost small" id="plainBtn" type="button" aria-pressed="' + (plainOn() ? 'true' : 'false') + '">Einfache Ansicht</button>'
-      + (window.speechSynthesis ? '<button class="btn ghost small" id="speakBtn" type="button">Vorlesen</button>' : '')
+      + '<button class="btn ghost small" id="speakBtn" type="button">Vorlesen</button>'
       + '<button class="btn ghost small" id="shareBtn" type="button">' + svgIcon("share") + 'Für Arzt/Apotheke</button>'
       + '<button class="btn ghost small" id="pdfBtn" type="button">' + svgIcon("download") + 'PDF-Bericht</button>'
       + '</div></div>';
@@ -1421,20 +1421,83 @@
     var sp = el("speakBtn");
     if (sp) sp.onclick = function () { toggleSpeak(sp); };
     stopSpeak();
+    loadTtsIndex();   // Liste der Seraphina-Aufnahmen vorab laden (Klick startet dann sofort)
     ensureFDA();
   }
   // ---- Einfache Ansicht (größere Schrift, ohne Hintergrund-Details) ---------
   function plainOn() { return !!lsGet(LS_PLAIN, false); }
   function applyPlain() { document.body.classList.toggle("plain", plainOn()); }
-  // ---- Vorlesen (Web Speech API, lokal im Browser) --------------------------
-  // Liest Überschrift, Einstufung und die Abschnitte „Was kann passieren?" /
-  // „Was ist zu tun?" – ausschließlich der angezeigte DB-Text.
-  var speaking = false;
-  // Stimme: bevorzugt „Seraphina“, sonst die natürlichste deutsche Stimme statt
-  // der ersten beliebigen (oft roboterhaften). Nur auf dem Gerät installierte
-  // Stimmen (localService) – „Online“-Stimmen (z. B. Edge „Seraphina Online“,
-  // Chrome „Google Deutsch“) schicken den vorgelesenen Text an Microsoft/Google.
-  // Gibt es keine lokale deutsche Stimme, bleibt es beim bisherigen Verhalten.
+  // ---- Vorlesen: Stimme Seraphina (vorab erzeugte Aufnahmen) ----------------
+  // Wie im Aufklärungsbogen: Die generischen Texte der Referenzdatenbank wurden
+  // einmalig im GitHub-Workflow tts.yml mit der Stimme Seraphina aufgenommen
+  // (media/tts/<hash>.mp3, Liste in media/tts/index.json). Die App spielt nur
+  // diese Dateien ab – zur Laufzeit geht KEIN Text an Microsoft/Google.
+  // Fehlt eine Aufnahme (z. B. ganz neuer DB-Text) oder lässt sie sich nicht
+  // laden, liest die lokal installierte Gerätestimme diesen Abschnitt.
+  // Die Abschnitte müssen denen in tools/tts_extract.js entsprechen.
+  var TTS_VER = "s1";
+  var TTS_BASE = "media/tts/";
+  function ttsNorm(t) { return String(t == null ? "" : t).replace(/\s+/g, " ").trim(); }
+  // cyrb53 über Version + Text → 16 Hex-Zeichen (Dateiname der Aufnahme).
+  function ttsKey(t) {
+    var str = TTS_VER + "|" + t, h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (var i = 0, ch; i < str.length; i++) {
+      ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return ("0000000" + (h2 >>> 0).toString(16)).slice(-8) + ("0000000" + (h1 >>> 0).toString(16)).slice(-8);
+  }
+  var ttsIdx = null, ttsIdxP = null;
+  function loadTtsIndex() {
+    if (ttsIdx) return Promise.resolve(ttsIdx);
+    if (ttsIdxP) return ttsIdxP;
+    ttsIdxP = fetch(TTS_BASE + "index.json").then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function (list) {
+      var s = {}; (list || []).forEach(function (h) { s[h] = 1; });
+      ttsIdx = s; return s;
+    }).catch(function () { ttsIdxP = null; return {}; });   // offline & nicht gecached → Gerätestimme
+    return ttsIdxP;
+  }
+  // Vorzulesende Abschnitte aus dem angezeigten Ergebnis (nur DB-Texte).
+  function speakSegments(root) {
+    var segs = [];
+    function add(t) { t = ttsNorm(t); if (t) segs.push(t); }
+    function ownText(node, skipSel) {
+      var out = [];
+      for (var n = node.firstChild; n; n = n.nextSibling) {
+        if (n.nodeType === 1 && n.matches && n.matches(skipSel)) continue;
+        out.push(n.textContent);
+      }
+      return out;
+    }
+    if (!root) return segs;
+    var v = root.querySelector(".verdict .vtx b"); if (v) add(v.textContent);
+    var ok = root.querySelector(".ok-note span"); if (ok) add(ok.textContent);
+    var cards = root.querySelectorAll(".res");
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i];
+      var t = c.querySelector(".ttl"); if (t) add(ownText(t, ".newtag").join(""));
+      var lb = c.querySelector(".sevmark-lb"); if (lb) add(lb.textContent);
+      var pr = c.querySelector(".pair"); if (pr) ownText(pr, ".arrow").forEach(add);
+      var lead = c.querySelector(".desc"); if (lead) add(lead.textContent);
+      var secs = c.querySelectorAll(".sec");
+      for (var j = 0; j < secs.length; j++) {
+        add(secs[j].querySelector(".sec-h").textContent);
+        add(secs[j].querySelector(".sec-b").textContent);
+      }
+      var rec = c.querySelector(".rec");
+      if (rec) { add("Empfehlung:"); add(ownText(rec, "b").join("")); }
+    }
+    return segs;
+  }
+  var speaking = false, speakRun = 0, ttsAudio = null;
+  // Ersatzstimme: nur auf dem Gerät installierte Stimmen (localService) –
+  // „Online“-Stimmen (Edge „Seraphina Online“, Chrome „Google Deutsch“) würden
+  // den Text an Microsoft/Google schicken.
   var VOICE_PREFS = [/seraphina/i, /(natural|neural)/i, /(premium|enhanced|erweitert)/i, /anna/i, /katja/i];
   function pickVoice(synth) {
     var voices = synth.getVoices ? synth.getVoices() : [];
@@ -1450,38 +1513,71 @@
   }
   // Chrome/Edge liefern die Stimmenliste erst verzögert – früh anstoßen.
   try { if (window.speechSynthesis) window.speechSynthesis.getVoices(); } catch (e) {}
+  function speakLocal(text, run, next) {
+    var synth = window.speechSynthesis;
+    if (run !== speakRun) return;
+    if (!synth) { next(); return; }
+    var voice = pickVoice(synth);
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = voice && /^de/i.test(voice.lang) ? voice.lang : "de-DE"; if (voice) u.voice = voice; u.rate = 0.95;
+    u.onend = u.onerror = function () { if (run === speakRun) next(); };
+    synth.speak(u);
+  }
+  // Aufnahme als Blob laden (kein Range-Request → sauber offline cachebar im SW).
+  var ttsBlobs = {};
+  function ttsBlob(key) {
+    if (!ttsBlobs[key]) ttsBlobs[key] = fetch(TTS_BASE + key + ".mp3").then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.blob();
+    }).catch(function (e) { delete ttsBlobs[key]; throw e; });
+    return ttsBlobs[key];
+  }
+  function hasRec(text) { return !!(ttsIdx && ttsIdx[ttsKey(text)]); }
+  function playSeg(segs, i, run) {
+    if (run !== speakRun) return;
+    if (i >= segs.length) { stopSpeak(); return; }
+    var text = segs[i], key = ttsKey(text), done = false;
+    function next() { if (run === speakRun) setTimeout(function () { playSeg(segs, i + 1, run); }, 180); }
+    function fallback() { if (done) return; done = true; speakLocal(text, run, next); }
+    if (!hasRec(text)) { fallback(); return; }
+    if (i + 1 < segs.length && hasRec(segs[i + 1])) ttsBlob(ttsKey(segs[i + 1])).catch(function () {});   // nächsten Abschnitt vorladen
+    ttsBlob(key).then(function (blob) {
+      if (run !== speakRun) return;
+      var a = ttsAudio, url = URL.createObjectURL(blob);
+      delete ttsBlobs[key];
+      function end(ok) {
+        if (done) return; done = true; URL.revokeObjectURL(url);
+        if (ok) next(); else speakLocal(text, run, next);
+      }
+      a.onended = function () { end(true); };
+      a.onerror = function () { if (run === speakRun) end(false); };
+      a.src = url;
+      var p = a.play();
+      if (p && p.catch) p.catch(function () { if (run === speakRun) end(false); });
+    }, function () { if (run === speakRun) fallback(); });
+  }
   function stopSpeak() {
-    speaking = false;
+    speaking = false; speakRun++;
+    if (ttsAudio) { try { ttsAudio.pause(); } catch (e) {} }
     try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
     var b = el("speakBtn"); if (b) b.textContent = "Vorlesen";
   }
   function toggleSpeak(btn) {
     if (speaking) { stopSpeak(); return; }
-    var root = el("results"); if (!root) return;
-    var parts = [];
-    var v = root.querySelector(".verdict .vtx b"); if (v) parts.push(v.textContent);
-    var ok = root.querySelector(".ok-note span"); if (ok) parts.push(ok.textContent);
-    var cards = root.querySelectorAll(".res");
-    for (var i = 0; i < cards.length; i++) {
-      var c = cards[i], t = c.querySelector(".ttl"), lb = c.querySelector(".sevmark-lb"), pr = c.querySelector(".pair");
-      var txt = (t ? t.textContent.replace(/^Neu/, "") : "") + (lb ? ". " + lb.textContent : "") + (pr ? ". " + pr.textContent.replace(/·/g, ",") : "") + ".";
-      var lead = c.querySelector(".desc"); if (lead) txt += " " + lead.textContent;
-      var secs = c.querySelectorAll(".sec");
-      for (var j = 0; j < secs.length; j++) txt += " " + secs[j].querySelector(".sec-h").textContent + " " + secs[j].querySelector(".sec-b").textContent;
-      var rec = c.querySelector(".rec"); if (rec) txt += " " + rec.textContent;
-      parts.push(txt);
-    }
-    if (!parts.length) return;
-    var synth = window.speechSynthesis;
-    synth.cancel();
+    var segs = speakSegments(el("results"));
+    if (!segs.length) return;
+    stopSpeak();
     speaking = true; btn.textContent = "Stopp";
-    var voice = pickVoice(synth);
-    parts.forEach(function (p, idx) {
-      var u = new SpeechSynthesisUtterance(p);
-      u.lang = voice && /^de/i.test(voice.lang) ? voice.lang : "de-DE"; if (voice) u.voice = voice; u.rate = 0.95;
-      if (idx === parts.length - 1) u.onend = u.onerror = function () { if (speaking) stopSpeak(); };
-      synth.speak(u);
-    });
+    var run = speakRun;
+    // Audio-Element noch innerhalb des Klicks anlegen und mit einem stillen Ton
+    // „freischalten“ – sonst blockiert iOS/Safari das spätere Abspielen.
+    if (!ttsAudio) ttsAudio = new Audio();
+    try {
+      ttsAudio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+      var up = ttsAudio.play(); if (up && up.catch) up.catch(function () {});
+    } catch (e) {}
+    if (ttsIdx) playSeg(segs, 0, run);
+    else loadTtsIndex().then(function () { playSeg(segs, 0, run); });
   }
   function stat(n, label) { return '<div class="stat"><b data-to="' + (n || 0) + '">' + n + '</b><span>' + esc(label) + '</span></div>'; }
   // Zahlen im Ergebnis kurz hochzählen (rein optisch; setzt bei reduzierter Bewegung sofort den Endwert).
