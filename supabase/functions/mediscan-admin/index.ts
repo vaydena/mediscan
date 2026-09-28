@@ -31,6 +31,33 @@ function safeEqual(a: string, b: string) {
   for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return out === 0;
 }
+// ---- Rate-Limit (per IP, festes Zeitfenster) ------------------------------
+// Speichert nur den SHA-256-Hash der IP (keine Roh-IP/PII), Zeilen sind kurzlebig.
+// Faellt bei DB-Fehlern bewusst OFFEN (true), damit niemand ausgesperrt wird.
+function clientIp(req: Request): string {
+  const xff = req.headers.get("x-forwarded-for") || "";
+  const first = xff.split(",")[0].trim();
+  return first || (req.headers.get("cf-connecting-ip") || "").trim() || "unknown";
+}
+async function rateOk(bucket: string, ip: string, limit: number, windowSecs: number): Promise<boolean> {
+  try {
+    const iph = (await sha256hex(ip)).slice(0, 40);
+    const rows = await sql`
+      insert into mediscan.rate_hits (bucket, iphash, reset_at, hits)
+      values (${bucket}, ${iph}, now() + make_interval(secs => ${windowSecs}), 1)
+      on conflict (bucket, iphash) do update set
+        hits = case when mediscan.rate_hits.reset_at < now() then 1 else mediscan.rate_hits.hits + 1 end,
+        reset_at = case when mediscan.rate_hits.reset_at < now() then now() + make_interval(secs => ${windowSecs}) else mediscan.rate_hits.reset_at end
+      returning hits`;
+    if (Math.random() < 0.02) {
+      try { await sql`delete from mediscan.rate_hits where reset_at < now() - interval '1 day'`; } catch (_e) { /* egal */ }
+    }
+    return Number(rows[0].hits) <= limit;
+  } catch (_e) {
+    return true; // fail-open: Limiter darf niemanden aussperren
+  }
+}
+
 function esc(s: unknown) { return String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string)); }
 
 function withTimeout<T>(p: Promise<T>, ms: number) {
@@ -99,6 +126,9 @@ kontakt@vaydena.de`;
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+
+  // Defense-in-depth gegen Brute-Force des Betreiber-Schluessels: max. 120 Anfragen / 5 min.
+  if (!(await rateOk("admin", clientIp(req), 120, 300))) return json({ error: "rate_limited" }, 429);
 
   const key = req.headers.get("x-admin-key") ?? "";
   if (!key) return json({ error: "unauthorized" }, 401);

@@ -31,6 +31,32 @@ async function hashIp(ip: string) {
   return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
 }
 
+// ---- Rate-Limit (per IP, festes Zeitfenster) ------------------------------
+// Speichert nur den SHA-256-Hash der IP (keine Roh-IP/PII), Zeilen sind kurzlebig.
+// Faellt bei DB-Fehlern bewusst OFFEN (true), damit niemand ausgesperrt wird.
+async function sha256hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function rateOk(bucket: string, ip: string, limit: number, windowSecs: number): Promise<boolean> {
+  try {
+    const iph = (await sha256hex(ip)).slice(0, 40);
+    const rows = await sql`
+      insert into mediscan.rate_hits (bucket, iphash, reset_at, hits)
+      values (${bucket}, ${iph}, now() + make_interval(secs => ${windowSecs}), 1)
+      on conflict (bucket, iphash) do update set
+        hits = case when mediscan.rate_hits.reset_at < now() then 1 else mediscan.rate_hits.hits + 1 end,
+        reset_at = case when mediscan.rate_hits.reset_at < now() then now() + make_interval(secs => ${windowSecs}) else mediscan.rate_hits.reset_at end
+      returning hits`;
+    if (Math.random() < 0.02) {
+      try { await sql`delete from mediscan.rate_hits where reset_at < now() - interval '1 day'`; } catch (_e) { /* egal */ }
+    }
+    return Number(rows[0].hits) <= limit;
+  } catch (_e) {
+    return true; // fail-open: Limiter darf niemanden aussperren
+  }
+}
+
 function str(v: unknown, max?: number) { return (typeof v === "string" ? v : "").trim().slice(0, max || 500); }
 function isEmail(s: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s); }
 function esc(s: unknown) { return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c] as string)); }
@@ -92,6 +118,8 @@ Deno.serve(async (req: Request) => {
   const consents = { privacy: true, agb: true, waiver, at, agb_version: AGB_VERSION };
   const billing = { recipient: bill_recipient, street: bill_street, zip: bill_zip, city: bill_city, email: buyer_email, consents };
   const ip_hash = await hashIp(clientIp(req));
+  // Kurzfristiger Backstop je IP: max. 6 abgeschickte Bestellungen/Stunde.
+  if (!(await rateOk("order", clientIp(req) || "unknown", 6, 3600))) return json({ error: "rate_limited" }, 429);
 
   let order_ref = "";
   let access_token = "";
