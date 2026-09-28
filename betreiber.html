@@ -494,8 +494,16 @@
     var msg = 'Lizenz „' + (l.order_ref||"") + '“ jetzt freischalten?\n\n' +
       'Es wird ein Bestätigungscode erzeugt' + (hasMail ? ' und automatisch an ' + l.buyer_email + ' gesendet.' : '.\n\nAchtung: keine E-Mail hinterlegt – der Code muss dem Käufer manuell mitgeteilt werden (siehe „Details“).');
     if(!window.confirm(msg)) return;
+    var extra = { id: l.id };
+    if(l.status === "pending"){
+      if(!window.confirm('ACHTUNG: Für „' + (l.order_ref||"") + '“ ist noch KEIN Zahlungseingang vermerkt.\n\nTrotzdem ohne Zahlung freischalten?')) return;
+      extra.confirm_unpaid = true;
+    }
+    if(/kein Verzicht/.test(l.notes || "") && l.created_at && (Date.now() - new Date(l.created_at).getTime()) < 14*864e5){
+      if(!window.confirm('Hinweis: Der Käufer hat NICHT auf sein Widerrufsrecht verzichtet und die 14-tägige Frist läuft noch.\n\nTrotzdem jetzt freischalten?')) return;
+    }
     setBusy(true); toast("Wird freigeschaltet …");
-    api("activate", { id: l.id }).then(function(d){
+    api("activate", extra).then(function(d){
       var code = d && d.license && d.license.token;
       if(d && d.emailed){ toast("Freigeschaltet · Code per E-Mail gesendet", "ok"); }
       else { toast("Freigeschaltet. E-Mail-Versand: " + ((d && d.mail_error) || "nicht möglich") + " – Code manuell weitergeben", "err"); }

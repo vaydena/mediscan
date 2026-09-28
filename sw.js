@@ -1,7 +1,7 @@
 /* MediScan – Service Worker (Offline-Shell + Referenzdatenbank).
  * Bei App-Änderungen VERSION erhöhen → alter Cache wird verworfen.
  */
-var VERSION = "ms-v1-2026-09-28-36";
+var VERSION = "ms-v1-2026-09-28-37";
 var CACHE = "mediscan-" + VERSION;
 /* Große, versionierte (unveränderliche) OCR-Abhängigkeiten (Tesseract-Kette)
  * getrennt & dauerhaft halten – NICHT bei jedem App-Update mit-verworfen, sonst
@@ -104,7 +104,9 @@ self.addEventListener("fetch", function (e) {
     e.respondWith(
       caches.match(req).then(function (r) {
         return r || fetch(req).then(function (resp) {
-          if (resp && (resp.ok || resp.type === "opaque")) {
+          // Nur versionierte Pfade (…@x.y.z/…) dauerhaft cachen – so kann eine
+          // fehlerhafte opake Antwort nicht fuer eine "latest"-URL haengen bleiben.
+          if (resp && (resp.ok || (resp.type === "opaque" && url.pathname.indexOf("@") > 0))) {
             var cp = resp.clone();
             caches.open(OCR_CACHE).then(function (c) { c.put(req, cp); });
           }

@@ -591,16 +591,19 @@ window.MediScan = (function () {
     if (looksStructured(text)) return null;      // BMP/Markup -> nie als Einzel-PZN raten
     var lab = text.match(/PZN[\s.:\-]*?(\d[\d\s]{5,8}\d)/i);          // (1)
     if (lab) { var p = lab[1].replace(/\s/g, ""); if (pznCheck(p)) return { pzn: pad8(p), valid: true, source: "label" }; }
-    var g = text.replace(/\D/g, "").match(/4150(\d{8})/);            // (2)
-    if (g && pznCheck(g[1])) return { pzn: pad8(g[1]), valid: true, source: "gtin" };
-    var runs = text.match(/\d{7,}/g) || [];                          // (3)
+    var runs = text.match(/\d{7,}/g) || [];
+    for (var gi = 0; gi < runs.length; gi++) {                       // (2) nur innerhalb EINER Ziffernfolge
+      var g = runs[gi].match(/4150(\d{8})/);
+      if (g && pznCheck(g[1])) return { pzn: pad8(g[1]), valid: true, source: "gtin" };
+    }
+    var ppn = text.match(/\b9N\s*11(\d{8})[0-9A-Z]{2}/);              // IFA-PPN (GS1-AI 9N): „11“ + PZN + Prüfzeichen
+    if (ppn && pznCheck(ppn[1])) return { pzn: pad8(ppn[1]), valid: true, source: "ppn" };
+    // (3) Nur eigenständige 8- bzw. 7-stellige Ziffernfolgen – kein Herausschneiden
+    // aus längeren Nummern (EAN, Chargen, Telefonnummern), sonst entstehen
+    // zufällig prüfziffer-gültige Falschtreffer.
     for (var len = 8; len >= 7; len--) {
       for (var r = 0; r < runs.length; r++) {
-        var run = runs[r];
-        for (var k = 0; k + len <= run.length; k++) {
-          var cand = run.substr(k, len);
-          if (pznCheck(cand)) return { pzn: pad8(cand), valid: true, source: "checksum" };
-        }
+        if (runs[r].length === len && pznCheck(runs[r])) return { pzn: pad8(runs[r]), valid: true, source: "checksum" };
       }
     }
     return null;

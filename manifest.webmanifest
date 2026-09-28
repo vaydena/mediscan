@@ -4,6 +4,7 @@
   "description": "Medikamente scannen oder eingeben und auf Wechselwirkungen sowie Patientenrisiken prüfen. Offline nutzbar. Kein Ersatz für ärztliche Beratung.",
   "lang": "de",
   "dir": "ltr",
+  "id": "/app.html",
   "start_url": "./app.html?go=scan",
   "scope": "./",
   "display": "standalone",

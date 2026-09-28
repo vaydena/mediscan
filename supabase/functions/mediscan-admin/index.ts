@@ -144,10 +144,14 @@ Deno.serve(async (req: Request) => {
 
     if (action === "create") {
       const name = String(body?.buyer_name ?? "").trim();
-      if (name.length < 2) return json({ error: "bad_name" }, 400);
-      const email = (typeof body?.buyer_email === "string" && body.buyer_email.trim() !== "") ? body.buyer_email.trim().toLowerCase() : null;
+      if (name.length < 2 || name.length > 120) return json({ error: "bad_name" }, 400);
+      const email = (typeof body?.buyer_email === "string" && body.buyer_email.trim() !== "") ? body.buyer_email.trim().toLowerCase().slice(0, 160) : null;
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "bad_email" }, 400);
       const notes = String(body?.notes ?? "").trim().slice(0, 500) || "Manuell angelegt";
-      const bill = (body?.billing && typeof body.billing === "object" && !Array.isArray(body.billing)) ? body.billing : {};
+      const rawBill = (body?.billing && typeof body.billing === "object" && !Array.isArray(body.billing)) ? body.billing as Record<string, unknown> : {};
+      // Nur bekannte Felder als kurze Strings uebernehmen.
+      const bs = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+      const bill = { recipient: bs(rawBill.recipient, 160) || name, street: bs(rawBill.street, 160), zip: bs(rawBill.zip, 20), city: bs(rawBill.city, 120), email: email || "" };
       const seq = await sql`select nextval('mediscan.order_seq') as v`;
       const order_ref = "MS-" + new Date().getFullYear() + "-" + String(seq[0].v).padStart(4, "0");
       const rows = await sql`insert into mediscan.licenses
@@ -176,6 +180,10 @@ Deno.serve(async (req: Request) => {
       if (pre.length === 0) return json({ error: "not_found" }, 404);
       const lic = pre[0];
       if (action === "activate" && lic.status === "revoked") return json({ error: "is_revoked" }, 409);
+      // Freischalten ohne vermerkten Zahlungseingang nur mit ausdruecklicher Bestaetigung.
+      if (action === "activate" && lic.status === "pending" && body?.confirm_unpaid !== true) {
+        return json({ error: "unpaid_confirm_required" }, 409);
+      }
       if (action === "resend_code" && !lic.token) return json({ error: "no_code_yet" }, 409);
       // Erneut senden darf eine gesperrte Lizenz NICHT still reaktivieren (Update unten setzt status=active).
       if (action === "resend_code" && lic.status === "revoked") return json({ error: "is_revoked" }, 409);
@@ -184,8 +192,9 @@ Deno.serve(async (req: Request) => {
       if (lic.token) {
         const r = await sql`update mediscan.licenses
             set status = 'active', activated_at = coalesce(activated_at, now()), paid_at = coalesce(paid_at, now()), revoked_at = null
-            where id = ${id}
+            where id = ${id} and status <> 'revoked'
             returning id, order_ref, token, status, buyer_name, buyer_email, activated_at`;
+        if (r.length === 0) return json({ error: "is_revoked" }, 409);
         row = r[0];
       } else {
         let ok = false;
@@ -194,9 +203,16 @@ Deno.serve(async (req: Request) => {
           try {
             const r = await sql`update mediscan.licenses
                 set token = ${cand}, status = 'active', activated_at = coalesce(activated_at, now()), paid_at = coalesce(paid_at, now())
-                where id = ${id}
+                where id = ${id} and token is null and status <> 'revoked'
                 returning id, order_ref, token, status, buyer_name, buyer_email, activated_at`;
-            row = r[0]; ok = true;
+            if (r.length === 0) {
+              // Parallel schon ein Code vergeben (Doppelklick) -> diesen verwenden, keinen zweiten erzeugen.
+              const again = await sql`select id, order_ref, token, status, buyer_name, buyer_email, activated_at
+                                        from mediscan.licenses where id = ${id} and token is not null and status = 'active' limit 1`;
+              if (again.length === 0) return json({ error: "not_found_or_wrong_status" }, 409);
+              row = again[0];
+            } else row = r[0];
+            ok = true;
           } catch (_e) { /* unique-violation auf token -> neuen Code versuchen */ }
         }
         if (!ok) return json({ error: "code_gen_failed" }, 500);

@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const rows = await sql`
-      select order_ref, token, status, buyer_name, activated_at
+      select order_ref, token, status, activated_at
         from mediscan.licenses
        where token is not null
          and regexp_replace(upper(token), '[^A-Z0-9]', '', 'g') = ${norm}
@@ -34,7 +34,7 @@ Deno.serve(async (req: Request) => {
     if (l.status !== "active") return json({ valid: false, reason: "not_active" });
     return json({
       valid: true,
-      license: { order_ref: l.order_ref, buyer_name: l.buyer_name, activated_at: l.activated_at },
+      license: { order_ref: l.order_ref, activated_at: l.activated_at },
     });
   } catch (_e) {
     return json({ error: "server_error" }, 500);
